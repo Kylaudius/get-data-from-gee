@@ -32,6 +32,7 @@ gee:
   chunk_size: 10                 # 每批单元数；失败会自动拆半，频繁超时时调小到 5
   max_retries: 2                 # 每批重试次数，仍失败则自动拆半
   retry_base_delay_s: 20
+  request_timeout_s: 600          # 单次 GEE 请求最长等待秒数（网络/VPN 断开时不会一直卡住）
   tile_scale: 4                  # 内存不足（User memory limit exceeded）时调大到 8 或 16
   s2_scale: 20
   dw_scale: 20
@@ -49,6 +50,7 @@ gee:
     ghsl_threshold_m2: 2000      # 100 m 栅格内建成面积 ≥ 2000 m²（20%）判为建成
     min_patch_km2: 0.5           # 小于此面积的斑块不作为县城/中心城区候选
     seat_buffer_m: 1500          # 驻地点缓冲距离
+    fill_holes: true             # 填补所选斑块内部孔洞（城区内公园、湖泊、广场等建成比例低于阈值的栅格）；false = 保留孔洞
   worldcover_classes:            # ESA WorldCover v100 地类代码（附录D 已按 GEE STAC 核验）
     tree: 10
     shrub: 20
@@ -56,8 +58,11 @@ gee:
     crop: 40
     built: 50
     bare: 60
+    snow: 70
     water: 80
     wetland: 90
+    mangrove: 95
+    moss: 100                    # 列全 11 类，03 中“各地类面积之和”才等于中心建成区总面积
   datasets:                      # GEE asset ID（2026-09 按 GEE 官方 STAC 目录核验）
     ghsl_built_s: JRC/GHSL/P2023A/GHS_BUILT_S
     ghsl_built_v: JRC/GHSL/P2023A/GHS_BUILT_V

@@ -31,6 +31,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
+import shapely
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (VERSION_DIR, atomic_write_csv, classify_unit, get_logger,  # noqa: E402
@@ -38,6 +39,18 @@ from common import (VERSION_DIR, atomic_write_csv, classify_unit, get_logger,  #
 
 # 中国常用等积投影（Albers Equal Area，双标准纬线 25°N/47°N，中央经线 105°E），用于计算面积
 CHINA_ALBERS = "+proj=aea +lat_1=25 +lat_2=47 +lat_0=0 +lon_0=105 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
+
+
+def valid_polygons(geoms: gpd.GeoSeries) -> gpd.GeoSeries:
+    """修复无效几何，并只保留面状部分。
+    边界数据常有“毛刺”（退化成线的尖角）或自相交，make_valid 后会得到 多边形 + 线/点 的 GeometryCollection，
+    Shapefile 无法写入这种几何（报错 Attempt to write non-polygon geometry），面积与分区统计也用不到线和点。"""
+    def fix(g):
+        if g is None or g.is_empty or g.geom_type in ("Polygon", "MultiPolygon"):
+            return g
+        polys = [x for x in shapely.get_parts(g) if x.geom_type in ("Polygon", "MultiPolygon")]
+        return shapely.union_all(polys) if polys else None
+    return gpd.GeoSeries([fix(g) for g in geoms.make_valid()], index=geoms.index, crs=geoms.crs)
 
 
 def main():
@@ -74,7 +87,7 @@ def main():
     gdf = gdf[~gdf["adcode"].str[:2].isin(["71", "81", "82"])].copy()
     # 同一代码存在多个多边形（飞地）时先合并
     gdf = gdf.dissolve(by="adcode", as_index=False, aggfunc={"name": "first"})
-    gdf["geometry"] = gdf.geometry.make_valid()
+    gdf["geometry"] = valid_polygons(gdf.geometry)
 
     # -----------------------------------------------------------------------
     # 代码块 2：判别单元类型
@@ -135,7 +148,7 @@ def main():
     units.to_file(out_dir / "units_full.gpkg", driver="GPKG")
     tol = float(ucfg.get("simplify_tolerance_deg", 0.001))
     simp = units[["unit_id", "unit_type", "prov_code", "pref_code", "geometry"]].copy()
-    simp["geometry"] = simp.geometry.simplify(tol, preserve_topology=True).make_valid()
+    simp["geometry"] = valid_polygons(simp.geometry.simplify(tol, preserve_topology=True))
     simp.to_file(out_dir / "units_for_gee.geojson", driver="GeoJSON")
     shp_dir = out_dir / "units_for_gee_shp"
     shp_dir.mkdir(exist_ok=True)

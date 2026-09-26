@@ -15,7 +15,7 @@
 | `tax_share` | 税收收入占比 | tax share of own revenue | 税收收入 / 一般公共预算收入 | 比值 |
 | `land_dep` | 土地出让依赖度 | land-conveyance dependence | 国有土地使用权出让收入 / 一般公共预算收入（仅市辖区单元，可选） | 比值 |
 | `fss_2010` | 财政自给率（2010 期） | fiscal self-sufficiency, 2009–2011 | 2009–2011 年均收入 / 年均支出 | 比值 |
-| `pop_chg_1020` | 常住人口对数变化 2010–2020 | log change of resident population | ln(P2020 / P2010)，普查常住人口 | 对数差 |
+| `pop_chg_1020` | 常住人口对数变化 2010–2020 | log change of resident population | ln(P2020 / P2010)，普查常住人口；任一期人口为 0 或缺失时不计算 | 对数差 |
 | `pop_chg_0010` | 常住人口对数变化 2000–2010 | log change of resident population | ln(P2010 / P2000) | 对数差 |
 | `res_hukou_ratio` | 常住/户籍人口比 | resident-to-registered ratio | 2020 常住人口 / 户籍人口；<1 表示人口净流出 | 比值 |
 | `urb_rate_2020` | 城镇化率 2020 | urbanization rate | 城镇人口 / 常住人口 | 比值 |
@@ -39,7 +39,7 @@
 | `openveg_share_2018` | 聚落内植被开放空间占比（2018） | vegetated open space share (GHS-BUILT-C) | GHSL 2018 聚落特征 1–3 类面积 / 各地类面积之和 | 比值 |
 | `road_share_2018` | 道路面占比（2018） | road surface share (GHS-BUILT-C) | GHSL 2018 聚落特征 5 类面积 / 各地类面积之和 | 比值 |
 | `park_pc_core` | 人均公园面积（可选） | park area per capita | 公园多边形面积 / 中心建成区人口（需提供公园数据） | m²/人 |
-| `park_access_share` | 公园步行可达人口比例（可选） | share of population within walking distance of a park | 公园 500 m 缓冲区内人口 / 中心建成区人口 | 比值 |
+| `park_access_share` | 公园步行可达人口比例（可选） | share of population within walking distance of a park | 公园 500 m 缓冲区内的 GHS-POP 人口 / 中心建成区 GHS-POP 人口 | 比值 |
 | `floor_res_pc_core` | 人均住宅建筑面积（遥感估算） | residential floor area per capita (GHSL volume) | (总建筑体量 − 非住宅体量) / 层高 / 中心建成区人口 | m²/人 |
 | `floor_res_pc_unit` | 人均住宅建筑面积（单元，遥感估算） | residential floor area per resident | 单元内 (总体量 − 非住宅体量) / 层高 / 2020 常住人口 | m²/人 |
 | `ntl_per_built` | 单位建成面积夜间灯光 | night-light radiance per km² built-up | VIIRS 2020 average_masked 求和 / 中心建成区建成面积（km²）；越低表示建成空间利用强度越低 | nW/cm²/sr per km² |
@@ -50,7 +50,7 @@
 | `land_pop_diverge` | 扩张—收缩背离 | built-up expansion under population decline | 中心建成区面积增长且常住人口下降 = 1 | 0/1 |
 | `green_official_ratio` | 官方/遥感人均绿地比（可选） | official-to-remote-sensing green ratio | 住建部人均公园绿地面积 / 遥感人均绿地面积 | 比值 |
 | `city_size_class` | 城市规模等级 | city size class (State Council 2014) | 按城区常住人口（万人）套用国发〔2014〕51号标准；超大特大按七普名单 | 类别 |
-| `group5` | 五类分组 | five-group typology | 超大特大城市市辖区 / 大城市市辖区 / 中小城市市辖区 / 县级市 / 县 | 类别 |
+| `group5` | 五类分组 | five-group typology | 超大特大城市市辖区 / 大城市市辖区 / 中小城市市辖区 / 县级市 / 县；另有 外围市辖区，以及城区人口缺失、无法分级的 市辖区（规模未知） | 类别 |
 | `quadrant` | 财政—人口四象限 | fiscal–demographic quadrant | 财政自给率是否 ≥ 阈值 × 常住人口是否增长 | 类别 |
 
 ## 原始遥感字段命名规则

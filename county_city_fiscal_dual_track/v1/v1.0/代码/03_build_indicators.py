@@ -194,6 +194,7 @@ def assign_groups(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
 # 结果：df 新增全部指标列。
 # ===========================================================================
 def compute(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+    df = df.copy()   # 合并后的表由许多小块组成，先整理成连续内存，避免逐列新增指标时出现 PerformanceWarning
     a = cfg["analysis"]
     storey = float(a["storey_height_m"])
     rev, exp = col(df, "gen_budget_revenue_main"), col(df, "gen_budget_expenditure_main")

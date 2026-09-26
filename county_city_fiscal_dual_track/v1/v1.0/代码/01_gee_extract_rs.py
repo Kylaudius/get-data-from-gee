@@ -14,7 +14,8 @@
 
 每个分析单元提取三组指标（研究设计报告第 6 节、附录C 有完整定义）：
   u_*  整个单元（县域 / 市辖区合计）：GHSL 建成面积、建筑体量、GHS-POP 与 WorldPop 人口、夜间灯光、地形、气候
-  c_*  中心建成区（县城 / 中心城区，按 GHSL 建成栅格的最大连通斑块或含驻地点的斑块识别，固定为 2020 年边界）：
+  c_*  中心建成区（县城 / 中心城区，按 GHSL 建成栅格的最大连通斑块或含驻地点的斑块识别，
+       默认填补斑块内部孔洞（城区内的公园、湖泊等），固定为 2020 年边界）：
        同上各项 + ESA WorldCover 2020 各地类面积、Sentinel-2 NDVI、Dynamic World 树木/草地概率、公园（可选）
   r_*  中心建成区外 5 km 环带：MODIS NDVI，作为“自然植被本底”控制变量（干旱区县城绿地少不等于财政投入少）
 
@@ -49,17 +50,20 @@ LOG = get_logger("01_gee_extract_rs")
 
 # ===========================================================================
 # 代码块 1：初始化 GEE
-# 目的：用 config.yaml 中的 Cloud 项目 ID 连接 Earth Engine。
+# 目的：用 config.yaml 中的 Cloud 项目 ID 连接 Earth Engine；并给每个请求设等待上限
+#       （earthengine-api 默认不限时：网络/VPN 断开时 getInfo 可能一直卡住，既不报错也不重试）。
+#       GEE 交互计算本身约 5 分钟超时，默认上限 600 秒不会误伤正常计算；超时后按失败处理，自动重试或拆分。
 # 结果：成功则打印“GEE 初始化成功”；失败会提示先运行 ee.Authenticate()。
 # ===========================================================================
-def init_ee(project: str):
+def init_ee(project: str, timeout_s: float = 600):
     try:
         ee.Initialize(project=project)
+        ee.data.setDeadline(int(timeout_s * 1000))
     except Exception as e:  # noqa: BLE001
         LOG.error("GEE 初始化失败。请先在终端运行：python -c \"import ee; ee.Authenticate(auth_mode='localhost')\" 完成浏览器登录，"
                   "并确认 config.yaml 中 gee.project 是你自己的 Cloud 项目 ID。原始错误：" + str(e)[:300])
         sys.exit(1)
-    LOG.info(f"GEE 初始化成功（project = {project}）")
+    LOG.info(f"GEE 初始化成功（project = {project}；单次请求最长等待 {timeout_s:.0f} 秒）")
 
 
 # ===========================================================================
@@ -152,11 +156,17 @@ class DS:
 # ===========================================================================
 # 代码块 3：数据集预检 (--preflight)
 # 目的：正式运行前确认每个数据集在所选年份都能取到影像、波段名正确，避免跑了几小时才发现取不到数据。
+#       覆盖全部用到的数据：逐年数据集、单期数据集、逐景数据集（Sentinel-2、Dynamic World、MODIS，
+#       以广州一点检查研究年份生长季是否有影像）、按“集合第一幅”读取的单期集合是否真的只有一幅，
+#       以及 config 中启用的 GEE 资产（units_asset、park_asset）。
 # 结果：逐项打印 OK / 缺失；全部 OK 才建议继续。
 # ===========================================================================
 def preflight(cfg):
     ds = DS(cfg)
-    years = cfg["gee"]["years"]
+    g = cfg["gee"]
+    c = g["datasets"]
+    years = g["years"]
+    gy, months = g["green_year"], g["green_months"]
     checks = []
     for y in years:
         checks += [(f"GHSL BUILT_S {y}", ds.ghsl_s(y)), (f"GHSL BUILT_V {y}", ds.ghsl_v(y)),
@@ -169,15 +179,56 @@ def preflight(cfg):
             checks.append((f"夜间灯光 {src} {y}", img))
     checks += [("WorldCover 2020", ds.worldcover()), ("GHSL BUILT_C 2018", ds.ghs_built_c()),
                ("JRC 地表水", ds.water()), ("到城市出行时间", ds.access()), ("地形 DEM", ds.terrain()),
-               (f"ERA5-Land {cfg['gee']['green_year']}", ds.climate(cfg["gee"]["green_year"]))]
+               (f"ERA5-Land {gy}", ds.climate(gy))]
+    pt = ee.Geometry.Point([113.26, 23.13])   # 广州：检查逐景数据集在 green_year 的 green_months 是否有影像
+
+    def first_scene(cid, bands):
+        col = (ee.ImageCollection(cid).filterBounds(pt).filter(ee.Filter.calendarRange(gy, gy, "year"))
+               .filter(ee.Filter.calendarRange(months[0], months[1], "month")))
+        return ee.Image(col.first()).select(bands)
+    if g.get("use_s2_ndvi", True):
+        checks.append((f"Sentinel-2 SR {gy}", first_scene(c["s2_sr"], ["B4", "B8", "SCL"])))
+    if g.get("use_dynamic_world", True):
+        checks.append((f"Dynamic World {gy}", first_scene(c["dynamic_world"], ["trees", "grass"])))
+    checks.append((f"MODIS NDVI {gy}", first_scene(c["modis_ndvi"], ["NDVI"])))
     all_ok = True
     for name, img in checks:
         try:
             bands = img.bandNames().getInfo()
+            if not bands:
+                raise ValueError("影像没有任何波段（该年份/月份可能没有影像）")
             LOG.info(f"OK   {name}: 波段 {bands}")
         except Exception as e:  # noqa: BLE001
             all_ok = False
             LOG.error(f"缺失 {name}: {str(e)[:200]}")
+    # 代码以“集合第一幅影像”读取 WorldCover 与 GHSL BUILT_C，集合若被拆成多幅分块，只会取到其中一块
+    for name, cid in (("WorldCover 集合影像数", c["worldcover"]), ("GHSL BUILT_C 集合影像数", c["ghsl_built_c"])):
+        try:
+            n = ee.ImageCollection(cid).size().getInfo()
+            if n != 1:
+                all_ok = False
+                LOG.error(f"异常 {name} = {n}（应为 1 幅全球影像）：请把 DS 中对应的 .first() 改为 .mosaic()")
+            else:
+                LOG.info(f"OK   {name} = 1")
+        except Exception as e:  # noqa: BLE001
+            all_ok = False
+            LOG.error(f"缺失 {name}: {str(e)[:200]}")
+    # config 中启用的 GEE 资产
+    assets = []
+    if g.get("units_source", "local") == "asset":
+        assets.append(("分析单元资产 units_asset", g["units_asset"], True))
+    if g.get("park_asset"):
+        assets.append(("公园多边形资产 park_asset", g["park_asset"], False))
+    for name, aid, need_uid in assets:
+        try:
+            fc = ee.FeatureCollection(aid)
+            info = ee.Dictionary({"n": fc.size(), "props": ee.Feature(fc.first()).propertyNames()}).getInfo()
+            if need_uid and "unit_id" not in info["props"]:
+                raise ValueError(f"资产中没有 unit_id 字段（现有字段：{info['props']}）")
+            LOG.info(f"OK   {name}: {info['n']} 个要素")
+        except Exception as e:  # noqa: BLE001
+            all_ok = False
+            LOG.error(f"缺失 {name}（{aid}）: {str(e)[:200]}")
     LOG.info("预检全部通过，可以试跑。" if all_ok else "预检有缺失项，请把日志发给合作者或检查 config.yaml 的 datasets。")
 
 
@@ -220,7 +271,9 @@ def core_feature(unit: "ee.Feature", built_img: "ee.Image", ccfg: dict, seats: "
         chosen = ee.Feature(ee.Algorithms.If(use_seat, near.sort("a", False).first(), largest))
         method = ee.String(ee.Algorithms.If(use_seat, "seat_patch", "largest_patch"))
     fallback = geom.centroid(100).buffer(1000)
-    patch_geom = fill_holes(chosen.geometry()) if ccfg.get("fill_holes", True) else chosen.geometry()
+    # 填洞后再与单元边界求交：若斑块包围了别的行政单元的飞地，飞地不会被算进本单元
+    patch_geom = (fill_holes(chosen.geometry()).intersection(geom, 10) if ccfg.get("fill_holes", True)
+                  else chosen.geometry())
     g = ee.Geometry(ee.Algorithms.If(has, patch_geom, fallback))
     return ee.Feature(g, {
         "unit_id": unit.get("unit_id"),
@@ -236,7 +289,7 @@ def core_feature(unit: "ee.Feature", built_img: "ee.Image", ccfg: dict, seats: "
 #       计数型栅格（人口、面积、体量、灯光）必须在“原生网格”上求和，否则重采样会改变总量，
 #       所以 crs 取影像自身投影（ee.Projection，含原生像元大小与网格起点），scale 传 None：
 #       GEE 规定 crs 与 scale 同时给出时会把网格“重缩放”到 scale，哪怕只差一点也会错位重采样
-#       （例如 CCNL 原生约 927.7 m，若写 scale=1000 求和会少约 14%）。
+#       （例如 DMSP/CCNL 的 30″ 经纬度网格名义约 927.7 m，若写 scale=1000，求和会少约 14%）。
 # 结果：返回带新属性的 ee.FeatureCollection。
 # ===========================================================================
 def reduce_add(fc, img, names: list, kind: str, scale, prefix: str, crs=None, tile_scale=4):
@@ -279,14 +332,23 @@ def run_chunk(units: "ee.FeatureCollection", cfg: dict, seats) -> tuple[list, di
     # 5a. 中心建成区：以 green_year（2020）的 GHSL 建成面积识别，并固定这一边界比较各年份
     built_ref = ds.ghsl_s(gy)
     cores = units.map(lambda u: core_feature(u, built_ref, g["core"], seats))
-    # 其他普查年份的“动态”中心建成区面积（同一规则、当年 GHSL），用于衡量建成区蔓延
+    # 其他普查年份的“动态”中心建成区面积（同一规则、当年 GHSL），用于衡量建成区蔓延。
+    # 该年没有合格斑块（退化为 1 km 圆）时面积记为缺失、不写入 core{y}_area_m2，并记下 core{y}_method，
+    # 否则 03 会用“1 km 圆面积 3.14 km²”去算 ln(A2020/A2010)，得到虚假的扩张/收缩（05 的 M9 直接使用）。
     for y in years:
         if y == gy:
             continue
         by = ds.ghsl_s(y)
         dyn = units.map(lambda u, by=by: core_feature(u, by, g["core"], seats))
-        d = ee.Dictionary.fromLists(dyn.aggregate_array("unit_id"), dyn.aggregate_array("core_area_m2"))
-        cores = cores.map(lambda f, y=y, d=d: f.set(f"core{y}_area_m2", d.get(f.get("unit_id"))))
+        ok = dyn.filter(ee.Filter.neq("core_method", "fallback_centroid_1km"))
+        d = ee.Dictionary.fromLists(ok.aggregate_array("unit_id"), ok.aggregate_array("core_area_m2"))
+        dm = ee.Dictionary.fromLists(dyn.aggregate_array("unit_id"), dyn.aggregate_array("core_method"))
+
+        def _set_dyn(f, y=y, d=d, dm=dm):
+            uid = f.get("unit_id")
+            f = f.set(f"core{y}_method", dm.get(uid))
+            return ee.Feature(ee.Algorithms.If(d.contains(uid), f.set(f"core{y}_area_m2", d.get(uid)), f))
+        cores = cores.map(_set_dyn)
 
     # 5b. 单元级与中心建成区级：GHSL 面积、体量、人口（原生 100 m 网格求和），WorldPop，夜间灯光
     u_fc, c_fc = units, cores
@@ -298,22 +360,23 @@ def run_chunk(units: "ee.FeatureCollection", cfg: dict, seats) -> tuple[list, di
         proj = ds.ghsl_s(y).select("built_surface").projection()
         u_fc = reduce_add(u_fc, stack, names, "sum", 100, "u_", crs=proj, tile_scale=ts)
         c_fc = reduce_add(c_fc, stack, names, "sum", 100, "c_", crs=proj, tile_scale=ts)
+        # WorldPop（3″ ≈ 92.77 m）与夜光（VIIRS 15″ ≈ 463.8 m；CCNL 沿用 DMSP 的 30″ 网格，STAC 标 1 km）都是经纬度网格：
+        # scale 传 None，直接在影像自身投影与像元大小上求和（给 scale 会把网格重缩放、错位重采样）
         wp = ds.worldpop(y)
         if wp is not None:
             wproj = wp.projection()
-            u_fc = reduce_add(u_fc, wp, [f"pop_wp_{y}"], "sum", 92.77, "u_", crs=wproj, tile_scale=ts)
-            c_fc = reduce_add(c_fc, wp, [f"pop_wp_{y}"], "sum", 92.77, "c_", crs=wproj, tile_scale=ts)
+            u_fc = reduce_add(u_fc, wp, [f"pop_wp_{y}"], "sum", None, "u_", crs=wproj, tile_scale=ts)
+            c_fc = reduce_add(c_fc, wp, [f"pop_wp_{y}"], "sum", None, "c_", crs=wproj, tile_scale=ts)
         nimg, src = ds.ntl(y)
         if nimg is not None:
-            sc = 463.83 if src == "viirs" else 1000
             nproj = nimg.projection()
-            u_fc = reduce_add(u_fc, nimg, [f"ntl_{src}_{y}"], "sum", sc, "u_", crs=nproj, tile_scale=ts)
-            c_fc = reduce_add(c_fc, nimg, [f"ntl_{src}_{y}"], "sum", sc, "c_", crs=nproj, tile_scale=ts)
+            u_fc = reduce_add(u_fc, nimg, [f"ntl_{src}_{y}"], "sum", None, "u_", crs=nproj, tile_scale=ts)
+            c_fc = reduce_add(c_fc, nimg, [f"ntl_{src}_{y}"], "sum", None, "c_", crs=nproj, tile_scale=ts)
 
     # 5c. 中心建成区内的绿地（10 m WorldCover 各地类面积；Sentinel-2 NDVI；Dynamic World 树木/草地概率）
     wc_img, wc_names = area_by_class(ds.worldcover(), g["worldcover_classes"])
     c_fc = reduce_add(c_fc, wc_img, wc_names, "sum", 10, "c_", tile_scale=ts)
-    bounds = units.geometry().bounds()
+    bounds = units.bounds(100)   # 本批单元的外包矩形（只用于筛选逐景影像；不必先合并各县多边形）
 
     # 5c'. 人口加权绿地暴露（population-weighted greenspace exposure，Chen et al. 2022 Nature Communications）：
     #      先把 10 m 的树木、绿地（树木+灌木+草地）二值图聚合为 100 m 覆盖比例，再取半径 r 的圆形邻域均值，
@@ -337,11 +400,19 @@ def run_chunk(units: "ee.FeatureCollection", cfg: dict, seats) -> tuple[list, di
     #      绿道代理：水体（JRC 出现频率 ≥ 50%）外扩 riparian_buffer_m 内的绿地（滨水绿带），
     #               GHSL 2018 道路面外扩 road_buffer_m 内的绿地（道路两侧绿带）；
     #      另记 GHSL 2018 聚落内植被开放空间（1–3 类）与道路面（5 类）面积。
+    #      连片斑块在 GHSL 的 Mollweide 等积投影 10 m 网格上计数（p10）：每个像元恰好 100 m²，与纬度无关；
+    #      若在经纬度网格上计数，像元面积约 100×cos(纬度) m²，“1 公顷”门槛在哈尔滨只相当于约 0.7 公顷，
+    #      且面积与可达两处用到的网格不一致。p10 与 GHSL 100 m 网格对齐，每个 100 m 格恰含 10×10 个像元。
     if g.get("use_green_proxies", True):
         green10 = wc.eq(10).Or(wc.eq(20)).Or(wc.eq(30))
-        minpix = max(int(g["green_patch_min_m2"] / 100), 2)          # 10 m 像元面积约 100 m²
-        cnt = green10.selfMask().connectedPixelCount(maxSize=min(minpix, 1024), eightConnected=True)
-        patch = cnt.gte(minpix).unmask(0).And(green10)
+        p10 = gproj.atScale(10)
+        g10 = green10.reproject(p10)
+        minpix = max(int(g["green_patch_min_m2"] / 100), 2)          # p10 像元面积 = 100 m²
+        if minpix > 1024:                                             # GEE 连通计数上限 1024 像元（约 10 公顷）
+            LOG.warning(f"green_patch_min_m2 超过 102400 m²，connectedPixelCount 最多计到 1024 像元，门槛按 1024 像元处理")
+            minpix = 1024
+        cnt = g10.selfMask().connectedPixelCount(maxSize=minpix, eightConnected=True).reproject(p10)
+        patch = cnt.gte(minpix).unmask(0).And(g10)
         water = ds.water().gte(50)
         riparian = green10.And(water.focalMax(radius=g["riparian_buffer_m"], units="meters")).And(water.Not())
         bc = ds.ghs_built_c()
@@ -421,6 +492,8 @@ def merge_rows(res: dict) -> list:
 # 代码块 7：断点续跑 + 自动拆分
 # 目的：某批失败时先重试（指数退避）；仍失败就拆成两半分别计算，直到单个单元；
 #       单个单元仍失败则记入 failures.csv 并继续下一批，不让一个“坏单元”卡住全国任务。
+#       续跑时，若某批上次已被拆分（chunks/ 下已有 <批次名>a… 或 <批次名>b… 的结果），
+#       直接沿用同样的拆分，只补算缺的部分，不再把整批（已知会失败）重新提交、白等重试。
 # 结果：成功的部分写入 chunks/；失败单元写入 failures.csv。
 # ===========================================================================
 def run_with_split(ids, make_fc, cfg, seats, tag, out_dir, failures):
@@ -428,6 +501,15 @@ def run_with_split(ids, make_fc, cfg, seats, tag, out_dir, failures):
     core_geo = out_dir / f"{tag}_core.geojson"
     if unit_csv.exists() and core_geo.exists():
         return len(ids)
+    mid = len(ids) // 2
+
+    def split():
+        a = run_with_split(ids[:mid], make_fc, cfg, seats, tag + "a", out_dir, failures)
+        b = run_with_split(ids[mid:], make_fc, cfg, seats, tag + "b", out_dir, failures)
+        return a + b
+    if len(ids) > 1 and (any(out_dir.glob(f"{tag}a*_unit.csv")) or any(out_dir.glob(f"{tag}b*_unit.csv"))):
+        LOG.info(f"{tag} 上次已拆分计算，沿用拆分续跑")
+        return split()
     g = cfg["gee"]
     tries = g["max_retries"] if len(ids) > 1 else g["max_retries"] + 1
     try:
@@ -443,33 +525,46 @@ def run_with_split(ids, make_fc, cfg, seats, tag, out_dir, failures):
             LOG.error(f"单元 {ids[0]} 多次失败，记入 failures.csv：{str(e)[:200]}")
             failures.append({"unit_id": ids[0], "error": str(e)[:500]})
             return 0
-        mid = len(ids) // 2
         LOG.warning(f"{tag} 失败，拆分为 {mid} + {len(ids) - mid} 个单元重试")
-        a = run_with_split(ids[:mid], make_fc, cfg, seats, tag + "a", out_dir, failures)
-        b = run_with_split(ids[mid:], make_fc, cfg, seats, tag + "b", out_dir, failures)
-        return a + b
+        return split()
 
 
 # ===========================================================================
 # 代码块 8：合并全部批次
 # 目的：把 chunks/ 下所有 *_unit.csv 与 *_core.geojson 合并为总表与总图层。
+#       同一单元出现在多个文件中时（例如先试跑 test_*、调整参数后再全国运行 chunk_*），
+#       以全国正式运行 chunk_* 的结果为准，试跑结果只补充尚未正式计算的单元；中心建成区多边形同样去重。
 # 结果：gee_unit_metrics.csv、core_polygons_2020.geojson。
 # ===========================================================================
+def _merge_order(p: Path):
+    """排序键：试跑文件在前、正式文件在后，配合 keep='last' 让正式结果优先。"""
+    return (p.name.startswith("chunk_"), p.name)
+
+
 def merge_all(out_dir: Path):
     ch = out_dir / "chunks"
-    csvs = sorted(ch.glob("*_unit.csv"))
+    csvs = sorted(ch.glob("*_unit.csv"), key=_merge_order)
     if not csvs:
         LOG.warning("还没有任何已完成的批次。")
         return
-    df = pd.concat([pd.read_csv(p, dtype={"unit_id": str}, encoding="utf-8-sig") for p in csvs], ignore_index=True)
+    parts = []
+    for p in csvs:
+        d = pd.read_csv(p, dtype={"unit_id": str}, encoding="utf-8-sig")
+        parts.append(d.assign(_from_test=not p.name.startswith("chunk_")))
+    df = pd.concat(parts, ignore_index=True)
     df = df.drop_duplicates("unit_id", keep="last").sort_values("unit_id")
+    n_test = int(df["_from_test"].sum())
+    df = df.drop(columns="_from_test")
     atomic_write_csv(df, out_dir / "gee_unit_metrics.csv")
-    feats = []
-    for p in sorted(ch.glob("*_core.geojson")):
-        feats += json.loads(p.read_text(encoding="utf-8"))["features"]
+    feats = {}
+    for p in sorted(ch.glob("*_core.geojson"), key=_merge_order):
+        for f in json.loads(p.read_text(encoding="utf-8"))["features"]:
+            feats[str(f.get("properties", {}).get("unit_id"))] = f
     atomic_write_text(out_dir / "core_polygons_2020.geojson",
-                      json.dumps({"type": "FeatureCollection", "features": feats}, ensure_ascii=False))
+                      json.dumps({"type": "FeatureCollection", "features": list(feats.values())}, ensure_ascii=False))
     LOG.info(f"已合并 {len(csvs)} 个批次文件，共 {len(df)} 个单元 → gee_unit_metrics.csv")
+    if n_test:
+        LOG.warning(f"其中 {n_test} 个单元只有试跑（test_*）结果；若试跑后改过参数，请在全国运行完成后再使用这些行。")
 
 
 # ===========================================================================
@@ -492,7 +587,7 @@ def main():
     if args.merge_only:
         merge_all(out_dir)
         return
-    init_ee(g["project"])
+    init_ee(g["project"], float(g.get("request_timeout_s", 600)))
     if args.preflight:
         preflight(cfg)
         return
@@ -514,11 +609,22 @@ def main():
     size = int(g["chunk_size"])
     if manifest_path.exists():
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if manifest.get("chunk_size") != size:
+            LOG.warning(f"config 中 chunk_size = {size}，但已有分批方案 {manifest_path.name} 用的是 {manifest.get('chunk_size')}；"
+                        f"为保证续跑判断有效，继续沿用已有分批（失败批次仍会自动拆半）。若还没有任何批次完成，"
+                        f"可删除 {manifest_path.name} 后重跑以启用新的 chunk_size。")
     else:
         ids = [f["properties"]["unit_id"] for f in feats]
         manifest = {"chunk_size": size, "chunks": [ids[i:i + size] for i in range(0, len(ids), size)]}
         atomic_write_json(manifest, manifest_path)
     by_id = {f["properties"]["unit_id"]: f for f in feats}
+    # 重新运行 00 后新增的单元（不在旧分批方案中）追加为新批次：已有批次编号不变，已完成结果仍然有效
+    listed = {u for ch in manifest["chunks"] for u in ch}
+    extra = [u for u in by_id if u not in listed]
+    if extra:
+        LOG.warning(f"{len(extra)} 个单元不在已有分批方案中（可能重新运行过 00），追加为新批次：{extra[:5]} …")
+        manifest["chunks"] += [extra[i:i + size] for i in range(0, len(extra), size)]
+        atomic_write_json(manifest, manifest_path)
 
     # 单元几何来源：local = 每批从本地 GeoJSON 发送（默认，免上传）；asset = 读取已上传的 GEE 表格资产（更稳，推荐全国运行）
     if g.get("units_source", "local") == "asset":
@@ -538,22 +644,42 @@ def main():
     chunks = manifest["chunks"]
     prog = ChunkProgress(len(chunks), LOG)
     failures = []
+    zero_streak, stopped = 0, False
     for i, ids in enumerate(chunks):
         tag = f"{tag_prefix}_{i:04d}"
         if (out_dir / "chunks" / f"{tag}_unit.csv").exists():
             prog.skip(i)
             continue
         ids = [u for u in ids if u in by_id]
+        if not ids:
+            prog.skip(i, "本批单元已不在当前单元表中，跳过")
+            continue
         prog.start(i, f"{len(ids)} 个单元（{ids[0]} … {ids[-1]}）")
         n = run_with_split(ids, make_fc, cfg, seats, tag, out_dir / "chunks", failures)
         prog.finish(i, n)
+        # 连续 3 批全部失败，多半是系统性问题（数据集 ID、代码、网络或 GEE 配额），继续跑只会把全国单元都记为失败
+        zero_streak = zero_streak + 1 if n == 0 else 0
+        if zero_streak >= 3:
+            LOG.error("连续 3 批全部失败，已停止。请查看日志与 failures.csv 中的报错（或先运行 --preflight），"
+                      "排除问题后重新运行即可从断点续跑。")
+            stopped = True
+            break
     prog.summary()
-    if failures:
-        fpath = out_dir / "failures.csv"
-        old = pd.read_csv(fpath, dtype=str, encoding="utf-8-sig") if fpath.exists() else pd.DataFrame()
-        atomic_write_csv(pd.concat([old, pd.DataFrame(failures)]).drop_duplicates("unit_id", keep="last"), fpath)
-        LOG.warning(f"{len(failures)} 个单元失败，见 failures.csv。可在 config 中调小 chunk_size 或增大 tile_scale 后重跑。")
+    # 失败清单：并入本次新失败的单元，并删去之后已成功补算的单元（只看本次同一批次前缀的结果文件）
+    fpath = out_dir / "failures.csv"
+    if failures or fpath.exists():
+        old = pd.read_csv(fpath, dtype=str, encoding="utf-8-sig") if fpath.exists() else pd.DataFrame(columns=["unit_id", "error"])
+        allf = pd.concat([old, pd.DataFrame(failures, columns=["unit_id", "error"])]).drop_duplicates("unit_id", keep="last")
+        done = set()
+        for p in (out_dir / "chunks").glob(f"{tag_prefix}_*_unit.csv"):
+            done |= set(pd.read_csv(p, dtype={"unit_id": str}, usecols=["unit_id"], encoding="utf-8-sig")["unit_id"])
+        allf = allf[~allf["unit_id"].isin(done)]
+        atomic_write_csv(allf, fpath)
+        if len(allf):
+            LOG.warning(f"{len(allf)} 个单元仍失败，见 failures.csv。可在 config 中增大 tile_scale 后重跑（会自动只补算失败单元）。")
     merge_all(out_dir)
+    if stopped:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

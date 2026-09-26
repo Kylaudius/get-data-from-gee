@@ -10,6 +10,7 @@ tests/run_smoke_test.py  用合成数据 (synthetic data) 端到端检查 00、0
 """
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import shutil
@@ -186,6 +187,8 @@ def run(script: str, base: Path, *args) -> bool:
 def main():
     keep = "--keep" in sys.argv
     base = Path(tempfile.mkdtemp(prefix="fdt_smoke_"))
+    # 本进程随后也会 import common 与 02 脚本，先设置 FDT_BASE_DIR，使其日志同样写进临时文件夹
+    os.environ["FDT_BASE_DIR"] = str(base)
     shutil.copytree(VERSION / "外部参数", base / "外部参数")
     gdf = synthetic_counties()
     write_inputs(base, gdf)
@@ -208,6 +211,20 @@ def main():
         "财政自给率非空比例 > 0.8": ind["fss"].notna().mean() > 0.8,
         "五类分组齐全": {"县", "县级市"} <= set(ind["group5"]),
     }
+    # 函数级检查：代码对照表中“部分划出、原代码保留”（A→A 0.8、A→B 0.2，2012 年）与
+    # 同一旧代码的第二次变更（A→C，2018 年）同时存在时，2010 年数据应得到 B 200、C 800，总量守恒
+    spec = importlib.util.spec_from_file_location("m02", CODE / "02_build_fiscal_census.py")
+    m02 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m02)
+    cw = pd.DataFrame({"old_code": ["430121"] * 3, "new_code": ["430121", "430102", "430103"],
+                       "weight": [0.8, 0.2, 1.0], "change_year": [2012, 2012, 2018]})
+    h = m02.harmonize(pd.DataFrame({"adcode": ["430121"], "pop_resident": [1000.0]}), "adcode",
+                      m02.CENSUS_COUNTS, [], cw, 2010, "pop_resident")
+    got = dict(zip(h["adcode"], h["pop_resident"]))
+    checks["代码对照：拆分保留原代码 + 二次变更，人口守恒"] = (
+        set(got) == {"430102", "430103"} and np.isclose(got["430102"], 200) and np.isclose(got["430103"], 800))
+    from common import classify_unit
+    checks["名称缺失时按代码判别（神农架林区 429021 → 县）"] = classify_unit("429021", float("nan")) == "county"
     for k, v in checks.items():
         print(f"{'OK  ' if v else 'FAIL'} 断言：{k}")
     all_ok = all(steps) and all(checks.values())

@@ -64,7 +64,10 @@ def prepare(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
         d["gap_ratio_2010"] = 1 - d["fss_2010"]
     if {"core_growth_1020", "pop_chg_1020"} <= set(d.columns):
         d["excess_land_growth"] = d["core_growth_1020"] - d["pop_chg_1020"]
-    d["group5"] = pd.Categorical(d["group5"], categories=["县", "县级市", "中小城市市辖区", "大城市市辖区", "超大特大城市市辖区"])
+    # 以“县”为参照组；不在五类中的单元（如“市辖区（规模未知）”）先设为缺失，再转为分类变量
+    #（直接把类别外的值放进 Categorical 在 pandas 3 中已不推荐、pandas 4 将报错）
+    cats = ["县", "县级市", "中小城市市辖区", "大城市市辖区", "超大特大城市市辖区"]
+    d["group5"] = pd.Categorical(d["group5"].where(d["group5"].isin(cats)), categories=cats)
     return d
 
 
