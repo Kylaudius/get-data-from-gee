@@ -94,7 +94,14 @@ def load_crosswalk(cfg) -> pd.DataFrame | None:
     cw["weight"] = pd.to_numeric(cw["weight"], errors="coerce").fillna(1.0) if "weight" in cw else 1.0
     cw["change_year"] = pd.to_numeric(cw["change_year"], errors="coerce") if "change_year" in cw else np.nan
     if "change_date" in cw:
-        cw["change_date"] = pd.to_datetime(cw["change_date"], errors="coerce", format="%Y-%m-%d")
+        # Excel 另存 CSV 时常把 2020-12-01 改写成 2020/12/1，也有人写 2020年12月1日，统一成 年-月-日 再解析
+        raw_date = cw["change_date"].astype("string").str.strip()
+        cw["change_date"] = pd.to_datetime(raw_date.str.replace(r"[./年月]", "-", regex=True).str.replace("日", "", regex=False),
+                                           errors="coerce", format="%Y-%m-%d")
+        bad_date = raw_date.fillna("").ne("") & cw["change_date"].isna()
+        if bad_date.any():
+            qa(f"代码对照表：{int(bad_date.sum())} 行 change_date 无法识别（应写作 YYYY-MM-DD），这些行只按 change_year 处理，"
+               f"普查年 11 月 1 日之后的变更可能漏映射，示例 {raw_date[bad_date].head(5).tolist()}")
         # 只填了日期、没填年份时，用日期的年份
         cw["change_year"] = cw["change_year"].fillna(cw["change_date"].dt.year)
         bad = cw["change_date"].notna() & cw["change_year"].notna() & (cw["change_date"].dt.year != cw["change_year"])
@@ -352,16 +359,34 @@ def build_fiscal(cfg, c2u, cw) -> tuple[pd.DataFrame, pd.Series | None]:
         # （若某县撤县设区后仍沿用原代码，请在对照表中写一行 A→A、change_year=设区年份，以保留设区前的县级数据。）
         is_dist = c2u["admin_type"].isin(["district", "pref_city_no_district"])
         city_codes = set(c2u.loc[is_dist & ~c2u["pref_code"].isin(dl_prefs), "adcode"])
-        blocks, n_city = [], 0
+        # 数据库导出表（如 EPS）常把历史年份也写成现行代码：撤县设区前的县级记录带着 2020 年的区代码。
+        # fiscal_census.backfilled_codes 为 true 时，设区年份（converted_year）之前的这类记录按县级数据保留；
+        # 同一年若已有旧代码记录经对照表映射到该区，则仍剔除，避免重复计算。
+        backfill = bool(fc.get("backfilled_codes", False))
+        cyear = (dict(zip(c2u["adcode"], pd.to_numeric(c2u["converted_year"], errors="coerce")))
+                 if "converted_year" in c2u else {})
+        blocks, n_city, n_back, n_back_possible = [], 0, 0, 0
         for y in sorted(df["year"].unique()):
             b = df[df["year"] == y]
             cwy = applicable(cw, int(y))
             old = set(cwy["old_code"]) if cwy is not None else set()
             is_city = b["adcode"].isin(city_codes) & ~b["adcode"].isin(old)
+            pre = b["adcode"].map(cyear).gt(int(y)).fillna(False).astype(bool)
+            targets = set(cwy.loc[cwy["old_code"].isin(set(b["adcode"])), "new_code"]) if cwy is not None else set()
+            cand = is_city & pre & ~b["adcode"].isin(targets)
+            n_back_possible += int(cand.sum())
+            if backfill:
+                n_back += int(cand.sum())
+                is_city = is_city & ~cand
             n_city += int(is_city.sum())
             blocks.append(harmonize(b[~is_city], "adcode", FISCAL_VARS, [], cw, int(y)))
         if n_city:
             qa(f"县域财政：{n_city} 条记录的代码当年已是市辖区或不设区地级市，与市辖区合计重复，已剔除")
+        if n_back:
+            qa(f"县域财政：{n_back} 条设区之前、却写着现行区代码的记录按县级数据保留（backfilled_codes = true）")
+        elif n_back_possible:
+            qa(f"县域财政：{n_back_possible} 条记录的年份早于该区的设区年份，却写着现行区代码，已按重复剔除。"
+               "若数据来自把历史年份改写为现行代码的数据库导出表，请把 config.yaml 的 fiscal_census.backfilled_codes 改为 true")
         df = pd.concat(blocks, ignore_index=True)
         m = df.merge(c2u[["adcode", "unit_id", "unit_type", "pref_code"]], on="adcode", how="left")
         un = m[m["unit_id"].isna()]
@@ -378,7 +403,14 @@ def build_fiscal(cfg, c2u, cw) -> tuple[pd.DataFrame, pd.Series | None]:
             qa(f"区级财政：{sorted(dl_prefs)} 的 {dl['adcode'].nunique()} 个区按区级记录归入各自单元"
                f"（{sorted(dl['unit_id'].unique())[:20]}），不再使用这些城市的市辖区合计")
             longs.append(dl.groupby(["unit_id", "year"])[cols].sum(min_count=1).reset_index())
-        to_cp = m[(m["unit_type"] == "city_proper") & ~is_dl]
+        to_cp = m[(m["unit_type"] == "city_proper") & ~is_dl].copy()
+        # 只把收入、支出都有数的县年份的金额加到市辖区合计上。收入与支出不全的县年份若也加进去，
+        # 该市这一年的收入与支出就来自不同的成员，自给率与净流入都会偏
+        part = ~valid_years(to_cp)
+        if part.any():
+            to_cp.loc[part, [c for c in FISCAL_MONEY if c in to_cp]] = np.nan
+            qa(f"县域财政：{int(part.sum())} 条设区前的县级记录收入与支出不全，金额未加到市辖区合计，"
+               f"示例 {to_cp.loc[part, ['adcode', 'year']].astype(str).agg('-'.join, axis=1).head(5).tolist()}")
         if len(to_cp):
             qa(f"县域财政：{to_cp['adcode'].nunique()} 个县在部分年份为县、2020 年已属市辖区，"
                "其财政数将加到对应城市的市辖区合计（2020 年边界口径）")

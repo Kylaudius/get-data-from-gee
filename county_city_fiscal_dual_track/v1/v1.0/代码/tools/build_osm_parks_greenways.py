@@ -138,20 +138,24 @@ def download(url: str, dest: Path, chunk_mb: float = 20, tries: int = 8, base_de
     chunk_bytes = int(chunk_mb * 1024 * 1024)
 
     for _ in range(max_rounds):
-        # 1a. 远端文件信息（大小与版本标识）
+        # 1a. 远端文件信息（大小与版本标识）。只采用成功的响应：出错页面（如 503）的大小与版本标识
+        #     和已下载部分对不上，若拿来比较会误判“服务器文件已更新”而删掉 .part
         head = None
         for k in range(tries):
             try:
-                head = session.head(url, allow_redirects=True, timeout=60)
-                if head.status_code in (405, 501):      # 服务器不支持 HEAD：用 GET 只取响应头
-                    head = session.get(url, stream=True, timeout=60)
-                    head.close()
-                head.raise_for_status()
+                resp = session.head(url, allow_redirects=True, timeout=60)
+                if resp.status_code in (405, 501):      # 服务器不支持 HEAD：用 GET 只取响应头
+                    resp = session.get(url, stream=True, timeout=60)
+                    resp.close()
+                resp.raise_for_status()
+                head = resp
                 break
             except requests.RequestException as e:
+                last = k == tries - 1
                 wait = min(base_delay * 2 ** k, 300)
-                LOG.warning(f"查询远端文件第 {k + 1}/{tries} 次失败：{str(e)[:150]}；{wait:.0f}s 后重试")
-                time.sleep(wait)
+                LOG.warning(f"查询远端文件第 {k + 1}/{tries} 次失败：{str(e)[:150]}" + ("" if last else f"；{wait:.0f}s 后重试"))
+                if not last:
+                    time.sleep(wait)
         if head is None:
             raise SystemExit("多次重试仍无法连接下载服务器。请检查网络或代理后重新运行，已下载部分会保留。")
         total = int(head.headers.get("Content-Length") or 0) or None
@@ -206,6 +210,10 @@ def download(url: str, dest: Path, chunk_mb: float = 20, tries: int = 8, base_de
                         last_report = 0
                     if r.status_code == 200:
                         total = int(r.headers.get("Content-Length") or 0) or total
+                        # 文件已更新时，后续续传的 If-Range 要用新版本的标识，否则每次中断后都会从头再来
+                        validator = _validator(r.headers) or validator
+                        atomic_write_json({"url": url, "validator": validator, "total": total, "md5": md5_expected},
+                                          meta_path)
                     mode = "ab" if r.status_code == 206 else "wb"
                     with open(part, mode) as f:
                         for block in r.iter_content(chunk_size=1 << 20):

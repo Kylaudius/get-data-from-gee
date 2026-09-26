@@ -80,7 +80,7 @@ CODEBOOK = [
     ("gap_ratio_2000", "转移支付依赖度（2000 期）", "transfer dependence ratio, 1999–2001",
      "(1999–2001 年均支出 − 年均收入) / 年均支出", "比值"),
     ("transfer_pc_2000_k", "人均转移支付（2000 期，预先确定）", "predetermined transfers per capita, 1999–2001",
-     "有转移支付观测值时取 1999–2001 年均转移支付合计 / P2000，否则取年均净流入 / P2000，再除以 1000；来源见 transfer_2000_src；长差分的处理变量", "千元/人"),
+     "有转移支付观测值时取 1999–2001 年均转移支付合计（合计缺失时为税收返还、一般性与专项转移支付之和）/ P2000，否则取年均净流入 / P2000，再除以 1000；来源见 transfer_2000_src；长差分的处理变量", "千元/人"),
     ("transfer_2000_src", "2000 期转移支付来源", "source of the 2000 transfer measure",
      "observed 为转移支付观测值，net_inflow 为净缺口代理", "类别"),
     ("exp_edu_share", "教育支出占比", "education share of expenditure", "教育支出 / 一般公共预算支出", "比值"),
@@ -136,7 +136,12 @@ CODEBOOK = [
     ("core_pop_ghs", "中心建成区人口（GHS-POP 重标定）", "core population, census-rescaled GHS-POP",
      "GHS-POP 2020 中心建成区求和 × (P2020 / GHS-POP 单元求和)；普查缺失时用未重标定值。GHS-POP 按建筑体量分配人口，隐含各处入住率相同", "人"),
     ("core_pop_official", "中心建成区人口（官方统计）", "core population, official statistics",
-     "市辖区与县级市取七普城区常住人口（city_urban_pop_file）；县取住建部《县城建设统计年鉴》mohurd_stock_year 年县城人口加暂住人口；前者缺失时用住建部同口径数", "人"),
+     "市辖区与县级市取七普城区常住人口（city_urban_pop_file）；县优先取 2020 年分乡镇街道普查中城关镇与县城街道的常住人口（township.census_township_files），"
+     "缺失时取住建部《县城建设统计年鉴》mohurd_stock_year 年县城人口加暂住人口（户籍口径，不是普查常住人口）；来源见 core_pop_official_src", "人"),
+    ("core_pop_official_src", "官方中心人口的来源", "source of official core population",
+     "census_urban（七普城区人口）、census_town（乡镇街道普查）或 mohurd（住建部城区、县城人口加暂住人口）", "类别"),
+    ("town_pop_chg_1020", "县城常住人口对数变化 2010–2020（乡镇街道普查）", "log change of county-town population from township census",
+     "ln(城关镇与县城街道 2020 年常住人口 / 2010 年常住人口)；两期都需在 township.census_township_files 中提供，2010 年的 county_adcode 须为 2020 年代码", "对数差"),
     ("core_pop_ratio_official_ghs", "官方与遥感中心人口之比", "official-to-GHS core population ratio",
      "core_pop_official / core_pop_ghs；中心建成区识别的质控指标", "比值"),
     ("core_pop_2010_ghs", "中心建成区人口 2010（GHS-POP 重标定）", "core population 2010, census-rescaled",
@@ -150,9 +155,11 @@ CODEBOOK = [
     ("quadrant_town", "单元与中心人口变化四象限", "unit versus core population-change quadrant",
      "按 pop_chg_1020 与 core_pop_chg_1020 的正负分为 县域收缩-县城增长、县域收缩-县城收缩、县域增长-县城增长、县域增长-县城收缩；市辖区单元的县域指单元，县城指中心城区", "类别"),
     ("core_pop_cf2010", "反事实中心建成区人口", "counterfactual core population",
-     "P2010 × c_pop_ghs_2020 / u_pop_ghs_2020，即 2020 年中心占比不变、单元人口停留在 2010 年时的中心人口", "人"),
+     "core_pop × core_pop_2010_ghs / core_pop_ghs，即固定的 2020 年中心建成区人口停留在 2010 年水平时的主口径中心人口；"
+     "变化率取 GHS-POP 重标定的两期，避免混用两种来源；core_pop 缺失时为缺失", "人"),
     ("denom_effect_core", "分母效应", "denominator effect",
-     "ln(core_pop_cf2010 / core_pop)，等于任一中心人均指标的 ln(实际值) − ln(反事实值)，树木、绿地、大型树木斑块与建成面积四项按构造相同；主口径为 ghs 时等于 −pop_chg_1020", "对数差"),
+     "ln(core_pop_cf2010 / core_pop) = −core_pop_chg_1020，即任一中心人均指标的 ln(实际值) − ln(反事实值)；树木、绿地、大型树木斑块与建成面积四项按构造相同。"
+     "正值表示中心人口减少抬高了人均值", "对数差"),
     ("tree_pc_unit", "人均树木覆盖（单元常住口径）", "core tree cover per unit resident", "中心建成区树木面积 / P2020", "m²/人"),
     ("tree_pc_hukou", "人均树木覆盖（户籍口径）", "core tree cover per registered resident", "中心建成区树木面积 / 户籍人口", "m²/人"),
     ("tree_pc_core_cf2010", "人均树木覆盖（反事实分母）", "core tree cover per counterfactual core resident",
@@ -257,13 +264,11 @@ CODEBOOK = [
     ("forest_share_clcd_YYYY", "CLCD 森林占比（可选）", "CLCD forest share of core",
      "c_clcdYYYY_forest_m2 / 当年各 CLCD 地类面积之和，YYYY 取 gee.clcd_years；需配置 gee.clcd_asset_template", "比值"),
     ("green_new_clcd_share", "CLCD 新增绿地占比（可选）", "share of CLCD green that is new since the baseline year",
-     "c_green_new_clcd_m2_2020 / 2020 年 CLCD 森林、灌木与草地面积；新增指 gee.clcd_baseline_year 时不属这三类", "比值"),
+     "c_green_new_clcd_m2_2020 / 2020 年 CLCD 森林、灌木与草地面积；新增指 2020 年为这三类、而 gee.clcd_baseline_year 时为耕地、裸地或不透水面，两端都用 CLCD", "比值"),
     # ---- 社会基础设施 ----
     ("beds_per_1k_res", "每千常住人口床位", "hospital beds per 1,000 residents",
      "医疗卫生机构床位（主分析期均值）/ P2020 × 1000", "张/千人"),
     ("beds_per_1k_hukou", "每千户籍人口床位", "hospital beds per 1,000 registered residents", "床位 / 户籍人口 × 1000", "张/千人"),
-    ("beds_res_hukou_ratio", "床位常住与户籍口径之比", "resident-to-registered ratio of bed provision",
-     "beds_per_1k_res / beds_per_1k_hukou；代数上等于 户籍人口 / P2020，只在有床位数的单元计算，用来对照同一供给在两种口径下的差距", "比值"),
     ("students_per_child", "在校生与 0–14 岁人口之比", "enrolled students per child aged 0–14",
      "(小学 + 普通中学在校生) / (share_0_14 × P2020)；学龄与 0–14 岁并不对应，只是近似", "比值"),
     ("welfare_beds_per_1k_65", "每千名 65 岁以上老人养老床位", "welfare beds per 1,000 residents aged 65+",
@@ -293,7 +298,7 @@ CODEBOOK = [
     ("muni_invest_green_pc", "人均园林绿化投资", "landscaping investment per core resident", "年均园林绿化投资 / core_pop", "元/人"),
     ("muni_invest_road_pc", "人均道路桥梁投资", "road and bridge investment per core resident", "年均道路桥梁投资 / core_pop", "元/人"),
     ("fund_fiscal_share", "财政拨款占资金来源比例", "fiscal appropriation share of funding",
-     "(中央财政拨款 + 地方财政拨款) / 资金来源合计，mohurd_years_main 各年加总后相除", "比值"),
+     "(中央财政拨款 + 地方财政拨款) / 资金来源合计；各项先取 mohurd_years_main 的年均值（缺报年份不计入该项均值）再相除", "比值"),
     ("fund_debt_share", "债券与贷款占资金来源比例", "bond and loan share of funding", "(债券 + 国内贷款) / 资金来源合计", "比值"),
     ("fund_self_share", "自筹资金占资金来源比例", "self-raised share of funding", "自筹资金 / 资金来源合计", "比值"),
     ("maint_subsidy_share", "维护建设资金中上级补助比例", "upper-level subsidy share of maintenance funds",
@@ -317,6 +322,9 @@ CODEBOOK = [
     ("quadrant", "财政与人口四象限", "fiscal–demographic quadrant", "财政自给率是否 ≥ 阈值 × 常住人口是否增长", "类别"),
     ("excluded", "排除单元", "excluded unit",
      "代码以 units.exclude_code_prefixes 或 analysis.exclude_code_prefixes 开头（默认兵团城市 6590xx）；保留在地图中，不进入表格与回归", "0/1"),
+    ("fiscal_scope_mismatch", "财政口径与单元不一致", "fiscal scope mismatch",
+     "units.city_proper_custom 中的城市（默认重庆）只把中心城区作为市辖区单元，财政却仍为《城市统计年鉴》全部市辖区合计时为 1；"
+     "这类单元的全部财政指标记为缺失，也不进入回归。逐区录入财政并列入 fiscal_census.district_level_fiscal_prefs 后为 0", "0/1"),
 ]
 
 
@@ -446,8 +454,32 @@ def assign_groups(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
 # 目的：按 CODEBOOK 的公式逐项计算；分母为 0 或缺失时结果为缺失；中心建成区人口过小的单元不计算人均指标。
 #       中心建成区退化为几何中心 1 km 缓冲（core_method = fallback_centroid_1km）的单元，
 #       其 c_、r_ 字段与中心建成区面积全部置为缺失，所有基于中心建成区的指标随之缺失，并按分组记录数量。
+#       财政口径与单元不一致（fiscal_scope_mismatch，如重庆只取主城九区而财政为全部市辖区合计）的单元，
+#       财政表的全部字段置为缺失：分子覆盖全部市辖区、分母只含中心城区，人均值与比值都不对应这个单元。
 # 结果：df 新增全部指标列。
 # ===========================================================================
+# 02 输出的财政表字段（与 02 的 FISCAL_VARS 一致），后缀为 main、rob、y2010、y2000
+FISCAL_TABLE_VARS = ("gen_budget_revenue", "gen_budget_expenditure", "tax_revenue", "land_conveyance_revenue", "gdp",
+                     "tax_rebate", "transfer_general", "transfer_specific", "transfer_total", "fund_budget_revenue",
+                     "exp_education", "exp_health", "exp_community", "exp_personnel", "exp_general_public",
+                     "students_primary", "students_secondary", "teachers_fulltime", "hospital_beds", "welfare_beds",
+                     "pop_hukou_yearend")
+FISCAL_SUFFIXES = ("main", "rob", "y2010", "y2000")
+
+
+def blank_scope_mismatch(df: pd.DataFrame) -> pd.DataFrame:
+    if "fiscal_scope_mismatch" not in df:
+        return df
+    mm = df["fiscal_scope_mismatch"].astype("string").str.lower().isin(["true", "1"]).fillna(False).astype(bool)
+    df["fiscal_scope_mismatch"] = mm.astype(int)
+    if mm.any():
+        cols = [f"{v}_{s}" for v in FISCAL_TABLE_VARS for s in FISCAL_SUFFIXES if f"{v}_{s}" in df]
+        df.loc[mm, cols] = np.nan
+        LOG.warning(f"{int(mm.sum())} 个单元的财政为全部市辖区口径、单元只含中心城区，财政指标记为缺失："
+                    f"{df.loc[mm, 'unit_id'].tolist()}。逐区录入财政并写入 district_level_fiscal_prefs 后即可使用。")
+    return df
+
+
 def blank_fallback_cores(df: pd.DataFrame) -> pd.DataFrame:
     method = df["core_method"].astype("string") if "core_method" in df else pd.Series(pd.NA, index=df.index, dtype="string")
     fb = method.eq(FALLBACK_CORE).fillna(False).astype(bool)
@@ -469,6 +501,7 @@ def blank_fallback_cores(df: pd.DataFrame) -> pd.DataFrame:
 def compute(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     df = df.copy()   # 合并后的表由许多小块组成，先整理成连续内存，避免逐列新增指标时出现 PerformanceWarning
     df = blank_fallback_cores(df)
+    df = blank_scope_mismatch(df)
     a = cfg["analysis"]
     g = cfg.get("gee", {})
     storey = float(a["storey_height_m"])
@@ -510,7 +543,9 @@ def compute(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     new["specific_share_2010"] = safe_div(s10, g10 + s10)
     rev00, exp00 = col(df, "gen_budget_revenue_y2000"), col(df, "gen_budget_expenditure_y2000")
     new["gap_ratio_2000"] = safe_div(exp00 - rev00, exp00)
-    obs00 = col(df, "transfer_total_y2000")
+    # 与主分析期、2010 期相同：合计缺失时用 税收返还 + 一般性转移支付 + 专项转移支付（《全国地市县财政统计资料》常只给分项）
+    obs00 = col(df, "transfer_total_y2000").fillna(
+        col(df, "transfer_general_y2000") + col(df, "transfer_specific_y2000") + col(df, "tax_rebate_y2000"))
     t00 = obs00.where(obs00.notna(), exp00 - rev00)
     new["transfer_pc_2000_k"] = safe_div(t00, p00) / 1000
     new["transfer_2000_src"] = pd.Series(np.where(obs00.notna(), "observed",
@@ -576,10 +611,12 @@ def compute(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     qt = pd.Series([f"{'县域增长' if x >= 0 else '县域收缩'}-{'县城增长' if y >= 0 else '县城收缩'}"
                     for x, y in zip(pc.fillna(0), cpc.fillna(0))], index=df.index)
     new["quadrant_town"] = qt.where(pc.notna() & cpc.notna())
-    cf = p10 * safe_div(col(df, "c_pop_ghs_2020"), col(df, "u_pop_ghs_2020"))
-    cf = cf.where(cf >= min_pop)
+    # 反事实分母：主口径中心人口按 GHS-POP 重标定的两期变化率折回 2010 年（固定的 2020 年中心建成区），
+    # 变化率只取同一来源，避免“官方 2020 年人口 / 格网 2010 年人口”混用两种口径
+    cf = core_pop * safe_div(core10, core_ghs)
     new["core_pop_cf2010"] = cf
     new["denom_effect_core"] = safe_log(safe_div(cf, core_pop))
+    new["town_pop_chg_1020"] = safe_log(safe_div(col(df, "town_pop_census_2020"), col(df, "town_pop_census_2010")))
     core_ghs_ok = core_ghs.where(core_ghs >= min_pop)
 
     # 3f 遥感面积：树木含红树林；绿地 = 树木 + 灌木 + 草地
@@ -672,7 +709,6 @@ def compute(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     beds = col(df, "hospital_beds_main")
     new["beds_per_1k_res"] = safe_div(beds, p20) * 1000
     new["beds_per_1k_hukou"] = safe_div(beds, hukou) * 1000
-    new["beds_res_hukou_ratio"] = safe_div(new["beds_per_1k_res"], new["beds_per_1k_hukou"])
     students = col(df, "students_primary_main") + col(df, "students_secondary_main")
     new["students_per_child"] = safe_div(students, col(df, "share_0_14_2020") * p20)
     new["welfare_beds_per_1k_65"] = safe_div(col(df, "welfare_beds_main"), col(df, "share_65plus_2020") * p20) * 1000
@@ -784,6 +820,34 @@ def load_mohurd(cfg, c2u) -> pd.DataFrame | None:
     return out.reset_index()
 
 
+def load_town_census(cfg, c2u):
+    """乡镇街道普查（可选）：把城关镇与县城街道（is_seat_town = 1）的常住人口按县汇总。
+    返回 unit_id、town_pop_census_2010、town_pop_census_2020；两年都没有文件时返回 None。
+    county_adcode 须为 2020 年县级代码（2010 年资料中的旧代码请先按代码对照表改写）。"""
+    files = ((cfg.get("township") or {}).get("census_township_files") or {})
+    out = None
+    for y, path in files.items():
+        p = resolve(path)
+        if not p.exists():
+            continue
+        tw = read_table(p, code_cols=("code12", "county_adcode"))
+        if "is_seat_town" not in tw or "pop_resident" not in tw:
+            LOG.warning(f"{p.name} 缺少 is_seat_town 或 pop_resident 列，跳过")
+            continue
+        seat = tw["is_seat_town"].astype("string").str.strip().str.lower().isin(["1", "1.0", "true", "是", "y", "yes"])
+        tw = tw[seat.fillna(False).astype(bool)].copy()
+        tw["adcode"] = tw["county_adcode"].map(norm_adcode)
+        tw["pop"] = pd.to_numeric(tw["pop_resident"], errors="coerce")
+        g = tw.dropna(subset=["adcode"]).groupby("adcode")["pop"].sum(min_count=1).reset_index()
+        g["unit_id"] = g["adcode"].map(dict(zip(c2u["adcode"], c2u["unit_id"])))
+        miss = g["unit_id"].isna()
+        if miss.any():
+            LOG.warning(f"{p.name}：{int(miss.sum())} 个县代码未匹配到分析单元，示例 {g.loc[miss, 'adcode'].head(10).tolist()}")
+        g = g.dropna(subset=["unit_id"]).groupby("unit_id")["pop"].sum(min_count=1).rename(f"town_pop_census_{int(y)}").reset_index()
+        out = g if out is None else out.merge(g, on="unit_id", how="outer")
+    return out
+
+
 def load_all(cfg) -> pd.DataFrame:
     ud = resolve(cfg["units"]["out_dir"])
     units = read_table(ud / "units_table.csv", code_cols=("unit_id", "prov_code", "pref_code"))
@@ -812,9 +876,14 @@ def load_all(cfg) -> pd.DataFrame:
         if "code" in u and "pref_code" in u:
             code = u["code"].where(u["code"].notna(), u["pref_code"])
         u["unit_id"] = code_to_unit(code, c2u)
-        # 只填了地级代码的旧表：未匹配到 county_to_unit 时按地级代码映射
+        # 只填了地级代码的旧表：未匹配到 county_to_unit 时按地级代码映射。只对 xxxx00 形式的代码这样做，
+        # 查不到的县级市代码（如边界中没有的新设县级市）不能归到所在地级市的市辖区单元，否则会顶替该市的城区人口
         miss = u["unit_id"].isna()
-        u.loc[miss, "unit_id"] = code[miss].map(norm_adcode).map(lambda c: "CP" + pref_code(c) if c else None)
+        u.loc[miss, "unit_id"] = code[miss].map(norm_adcode).map(
+            lambda c: "CP" + pref_code(c) if c and c[4:] == "00" else None)
+        if u["unit_id"].isna().any():
+            LOG.warning(f"城区人口表中 {int(u['unit_id'].isna().sum())} 行代码未匹配到分析单元，已忽略："
+                        f"{code[u['unit_id'].isna()].head(10).tolist()}")
         u["urban_pop_total_10k"] = pd.to_numeric(u["urban_pop_10k"], errors="coerce") + \
             pd.to_numeric(u["urban_temp_pop_10k"], errors="coerce").fillna(0) if "urban_temp_pop_10k" in u else \
             pd.to_numeric(u["urban_pop_10k"], errors="coerce")
@@ -828,17 +897,32 @@ def load_all(cfg) -> pd.DataFrame:
     mo = load_mohurd(cfg, c2u)
     if mo is not None:
         df = df.merge(mo, on="unit_id", how="left")
+    town = load_town_census(cfg, c2u)
+    if town is not None:
+        df = df.merge(town, on="unit_id", how="left")
     df = df.copy()   # 多次合并后整理内存，避免逐列新增时的 PerformanceWarning
 
     # 官方中心人口：市辖区与县级市用七普城区人口（缺失时用住建部城区人口），县用住建部县城人口 + 暂住人口
     t = df["unit_type"]
     upop = col(df, "urban_pop_total_10k")
     mpop = col(df, "mohurd_pop_total_10k")
+    tpop = col(df, "town_pop_census_2020") / 1e4
     off = pd.Series(np.nan, index=df.index)
+    osrc = pd.Series(None, index=df.index, dtype="object")
     cityish = t.isin(["city_proper", "county_city"])
+    cnty = t == "county"
     off[cityish] = upop[cityish].fillna(mpop[cityish])
-    off[t == "county"] = mpop[t == "county"]
+    osrc[cityish & upop.notna()] = "census_urban"
+    osrc[cityish & upop.isna() & mpop.notna()] = "mohurd"
+    # 县：优先用乡镇街道普查的城关镇与县城街道常住人口（普查口径），缺失时才用住建部县城人口 + 暂住人口（户籍口径）
+    off[cnty] = tpop[cnty].fillna(mpop[cnty])
+    osrc[cnty & tpop.notna()] = "census_town"
+    osrc[cnty & tpop.isna() & mpop.notna()] = "mohurd"
     df["core_pop_official"] = off * 1e4
+    df["core_pop_official_src"] = osrc
+    n_m = int((cnty & (osrc == "mohurd")).sum())
+    if n_m:
+        LOG.info(f"{n_m} 个县的官方中心人口取自住建部县城人口 + 暂住人口（户籍口径）；提供乡镇街道普查后会改用普查常住人口")
 
     # 行政等级
     ar_path = resolve(cfg["analysis"].get("admin_rank_file", "外部参数/admin_rank.csv"))

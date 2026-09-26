@@ -543,8 +543,8 @@ def build_chunk(units: "ee.FeatureCollection", cfg: dict, seats) -> dict:
                  .addBands(ds.ghsl_pop(y)))
         names = [f"bs_{y}", f"bsn_{y}", f"bv_{y}", f"bvn_{y}", f"pop_ghs_{y}"]
         proj = ds.ghsl_s(y).select("built_surface").projection()
-        u_fc = reduce_add(u_fc, stack, names, "sum", 100, "u_", crs=proj, tile_scale=ts)
-        c_fc = reduce_add(c_fc, stack, names, "sum", 100, "c_", crs=proj, tile_scale=ts)
+        u_fc = reduce_add(u_fc, stack, names, "sum", None, "u_", crs=proj, tile_scale=ts)
+        c_fc = reduce_add(c_fc, stack, names, "sum", None, "c_", crs=proj, tile_scale=ts)
         # WorldPop（3″ ≈ 92.77 m）与夜光（VIIRS 15″ ≈ 463.8 m；CCNL 沿用 DMSP 的 30″ 网格，STAC 标 1 km）都是经纬度网格：
         # scale 传 None，直接在影像自身投影与像元大小上求和（给 scale 会把网格重缩放、错位重采样）
         wp = ds.worldpop(y)
@@ -613,7 +613,7 @@ def build_chunk(units: "ee.FeatureCollection", cfg: dict, seats) -> dict:
     expo = frac.focalMean(radius=rad, kernelType="circle", units="meters").reproject(gproj)
     pop_g = ds.ghsl_pop(gy)
     pw = expo.multiply(pop_g).addBands(pop_g)
-    c_fc = reduce_add(c_fc, pw, [f"pw_tree_{gy}", f"pw_green_{gy}", f"pop_expo_{gy}"], "sum", 100, "c_",
+    c_fc = reduce_add(c_fc, pw, [f"pw_tree_{gy}", f"pw_green_{gy}", f"pop_expo_{gy}"], "sum", None, "c_",
                       crs=gproj, tile_scale=ts)
 
     # 6c'''. 大型绿斑与线性绿地（遥感代理；“公园”“绿道”两个词只用于矢量数据，附录D 说明依据）
@@ -655,12 +655,14 @@ def build_chunk(units: "ee.FeatureCollection", cfg: dict, seats) -> dict:
         dist = g["park_access_distance_m"]
         patch100 = patch.reduceResolution(ee.Reducer.max(), maxPixels=1024).reproject(gproj)
         near = patch100.focalMax(radius=dist, units="meters").reproject(gproj)
-        c_fc = reduce_add(c_fc, pop_g.updateMask(near), [f"pop_greenpatch{dist}_{gy}"], "sum", 100, "c_",
+        c_fc = reduce_add(c_fc, pop_g.updateMask(near), [f"pop_greenpatch{dist}_{gy}"], "sum", None, "c_",
                           crs=gproj, tile_scale=ts)
 
     # 6c''''. 可选：CLCD 30 m 年度地类（Yang & Huang 2021，社区目录，路径须先核验）
-    #      各年份各地类面积（原生网格求和），以及“新增管理绿地”：2020 年 WorldCover 绿地中，
-    #      CLCD 基期（clcd_baseline_year）为耕地、裸地或不透水面的部分
+    #      各年份各地类面积（原生网格求和），以及“新增管理绿地”：CLCD 最后一年（clcd_years 最大值，
+    #      与 03 中 green_new_clcd_share 的分母同一年）为林地、灌木或草地，且基期（clcd_baseline_year）
+    #      为耕地、裸地或不透水面的面积。两端都用 CLCD：WorldCover 10 m 与 CLCD 30 m 的分类体系不同，
+    #      跨产品相减会把分类差异（如老城区 30 m 像元被 CLCD 判为不透水面、却被 WorldCover 判为树木）当成新增
     if g.get("clcd_asset_template"):
         cls = g.get("clcd_classes") or {}
         for y in g.get("clcd_years", []):
@@ -669,13 +671,17 @@ def build_chunk(units: "ee.FeatureCollection", cfg: dict, seats) -> dict:
             c_fc = reduce_add(c_fc, masked_areas([img.eq(int(v)) for v in cls.values()], names), names,
                               "sum", None, "c_", crs=img.projection(), tile_scale=ts)
         codes = [int(cls[k]) for k in ("crop", "bare", "imp") if k in cls]
-        if codes:
+        gcodes = [int(cls[k]) for k in ("forest", "shrub", "grass") if k in cls]
+        cys = [int(y) for y in g.get("clcd_years", [])]
+        if codes and gcodes and cys:
+            last = ds.clcd(max(cys))
             base = ds.clcd(g.get("clcd_baseline_year", 2000))
-            bm = wc_mask(base, codes)
-            c_fc = reduce_add(c_fc, masked_areas([green10.And(bm)], ["gn"]), [f"green_new_clcd_m2_{gy}"],
-                              "sum", 10, "c_", tile_scale=ts)
+            gn = wc_mask(last, gcodes).And(wc_mask(base, codes))
+            c_fc = reduce_add(c_fc, masked_areas([gn], ["gn"]), [f"green_new_clcd_m2_{gy}"],
+                              "sum", None, "c_", crs=last.projection(), tile_scale=ts)
         else:
-            LOG.warning("clcd_classes 中没有 crop、bare、imp，无法计算 c_green_new_clcd_m2")
+            LOG.warning("clcd_classes 缺少 crop、bare、imp 或 forest、shrub、grass（或 clcd_years 为空），"
+                        "无法计算 c_green_new_clcd_m2")
 
     if g.get("use_s2_ndvi", True):
         ndvi = ds.s2_ndvi(bounds, gy, months)
@@ -694,7 +700,7 @@ def build_chunk(units: "ee.FeatureCollection", cfg: dict, seats) -> dict:
         dist = g["park_access_distance_m"]
         near = ee.Image(0).byte().paint(parks.map(lambda f: f.buffer(dist)), 1)
         pop_near = ds.ghsl_pop(gy).updateMask(near)
-        c_fc = reduce_add(c_fc, pop_near, [f"pop_park{dist}_{gy}"], "sum", 100, "c_",
+        c_fc = reduce_add(c_fc, pop_near, [f"pop_park{dist}_{gy}"], "sum", None, "c_",
                           crs=ds.ghsl_s(gy).select("built_surface").projection(), tile_scale=ts)
 
     # 6d'. 可选：学校、医院、养老机构点位（poi_assets）。中心建成区内的设施个数（逐个中心建成区 filterBounds 计数），
@@ -708,7 +714,7 @@ def build_chunk(units: "ee.FeatureCollection", cfg: dict, seats) -> dict:
         pts = ee.FeatureCollection(aid).filterBounds(bounds.buffer(dist, 100))
         c_fc = c_fc.map(lambda f, pts=pts, key=key: f.set(f"c_n_poi_{key}", pts.filterBounds(f.geometry()).size()))
         near = ee.Image(0).byte().paint(pts.map(lambda p, dist=dist: p.buffer(dist, 10)), 1)
-        c_fc = reduce_add(c_fc, pop_g.updateMask(near), [f"pop_poi_{key}{dist}_{gy}"], "sum", 100, "c_",
+        c_fc = reduce_add(c_fc, pop_g.updateMask(near), [f"pop_poi_{key}{dist}_{gy}"], "sum", None, "c_",
                           crs=gproj, tile_scale=ts)
 
     # 6d''. 可选：绿道线要素（greenway_asset）。中心建成区内的绿道长度（线段与中心建成区求交后求长度），
@@ -724,7 +730,7 @@ def build_chunk(units: "ee.FeatureCollection", cfg: dict, seats) -> dict:
             return f.set("c_greenway_len_m", segs.aggregate_sum("len"))
         c_fc = c_fc.map(_gw_len)
         near = ee.Image(0).byte().paint(lines.map(lambda ln: ln.buffer(gdist, 10)), 1)
-        c_fc = reduce_add(c_fc, pop_g.updateMask(near), [f"pop_greenway{gdist}_{gy}"], "sum", 100, "c_",
+        c_fc = reduce_add(c_fc, pop_g.updateMask(near), [f"pop_greenway{gdist}_{gy}"], "sum", None, "c_",
                           crs=gproj, tile_scale=ts)
 
     # 6e. 地形（单元与中心建成区）与气候（单元）：坡度在 NASADEM 原生 30 m 网格上计算，
@@ -1358,6 +1364,10 @@ def main():
         return ee.FeatureCollection({"type": "FeatureCollection", "features": fs}) if fs else None
 
     if args.export_failed:
+        if args.annual:
+            LOG.error("--export-failed 只处理主模式的 failures.csv，不能与 --annual 同用；年度模式失败的单元请调小 "
+                      "annual.dw_years_per_request 或 chunk_size 后重新运行 --annual。")
+            sys.exit(1)
         export_failed(out_dir, did, cfg, by_id, make_fc, seats_for)
         return
 
@@ -1401,7 +1411,7 @@ def run_annual(cfg, adir, out_dir, prefix, ids_all, size, big, thr, make_fc, sea
         LOG.warning(f"找不到 {core_path.name}（请先完成正式运行并合并）。年度模式将在服务器端按同一规则重新识别中心建成区，"
                     "结果与主运行的中心建成区应一致，但每个请求更慢。")
     missing = [u for u in ids_all if u not in core_feats]
-    if core_feats and missing:
+    if core_path.exists() and missing:
         LOG.warning(f"{len(missing)} 个单元不在 {core_path.name} 中（主运行失败或尚未运行），"
                     f"年度模式在服务器端重新识别其中心建成区：{missing[:5]} …")
     ds = DS(cfg)

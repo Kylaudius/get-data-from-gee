@@ -37,7 +37,8 @@
 #   columns       模板列名: {pattern: 源表头正则, unit: 源单位, target_unit: 模板单位, exclude: 排除的正则}
 #                 一个表头只对应第一个匹配到的模板列。
 #                 金额单位（元、千元、万元、百万元、亿元）的 target_unit 可省略，默认取 config.yaml 的
-#                 fiscal_census.money_unit_in_raw。其他单位须写 target_unit，可用的单位有
+#                 fiscal_census.money_unit_in_raw（住建部面板 mohurd_panel 例外，模板规定为万元，始终转成万元）。
+#                 其他单位须写 target_unit，可用的单位有
 #                 人、万人；户、万户；平方米、万平方米、公顷、平方公里、亩；米、公里；个、张；%、‰、小数。
 #                 也可以直接写 factor（乘数），此时不看 unit。
 #   fixed         给模板列填固定值，例如市辖区口径的 scope、住建部面板的 level

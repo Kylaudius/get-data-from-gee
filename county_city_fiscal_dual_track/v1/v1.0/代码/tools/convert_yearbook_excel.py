@@ -56,7 +56,8 @@ TEMPLATE_DIR = next((d for d in (VERSION_DIR / "数据" / "模板", CODE_DIR.par
 
 # ---------------------------------------------------------------------------
 # 代码块 1：单位换算表
-# 目的：同一类单位之间换算（源单位 → 模板单位）。金额的模板单位默认取 config.yaml 的 money_unit_in_raw。
+# 目的：同一类单位之间换算（源单位 → 模板单位）。金额的模板单位默认取 config.yaml 的 money_unit_in_raw；
+#       住建部面板例外，模板规定为万元（03 按万元换算），不随 money_unit_in_raw 变化。
 # 结果：unit_factor() 返回乘数；单位不认识或类别不同时报错说明。
 # ---------------------------------------------------------------------------
 UNITS = {
@@ -71,6 +72,8 @@ UNITS = {
 }
 UNIT_FAMILY = {u: fam for fam, d in UNITS.items() for u in d}
 MUNICIPALITIES = {"110000", "120000", "310000", "500000"}
+# 金额单位由模板本身规定、不随 money_unit_in_raw 变化的模板
+TEMPLATE_MONEY_UNIT = {"mohurd_panel": "万元"}
 
 
 def unit_factor(spec: dict, tcol: str, money_unit: str) -> float:
@@ -112,6 +115,7 @@ class Job:
         self.name = str(d.get("job") or "未命名")
         self.template = str(d.get("template", ""))
         self.tcols = template_columns(self.template)
+        money_unit = TEMPLATE_MONEY_UNIT.get(self.template, money_unit)
         self.code_t = (d.get("code") or {}).get("target") or next(
             (c for c in ("adcode", "pref_code", "code", "code12", "old_code") if c in self.tcols), None)
         if self.code_t is None:

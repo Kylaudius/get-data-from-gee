@@ -42,7 +42,7 @@ FE_TERMS = ("prov_code", "pref_code")
 # ===========================================================================
 # 代码块 1：样本与变量准备
 # 目的：剔除 excluded 单元（兵团城市）、财政口径不一致的单元（fiscal_scope_mismatch）与外围市辖区；
-#       主分析期有收支数据的年份少于 analysis.min_fiscal_years（默认 2）时，财政变量记为缺失；
+#       主分析期（或稳健性年份）有收支数据的年份少于 analysis.min_fiscal_years（默认 2）时，相应财政变量记为缺失；
 #       对取对数的变量先缩尾 (winsorize) 再取对数，对线性变量直接缩尾，减少极端值影响；生成长差分结果变量。
 # 结果：返回建模用 DataFrame。
 # ===========================================================================
@@ -55,9 +55,10 @@ LINEAR_VARS = ["net_inflow_pc_k", "net_inflow_pc_k_rob", "gap_ratio", "pop_chg_1
                "expo_tree_core", "tree_share_core", "park_access_share", "ndvi_gap", "core_growth_1020", "fss_2010",
                "greenpatch_access_share", "transfer_pc_2000_k", "imp_growth_0010_core", "imp_growth_1018_core",
                "dlnS_builtup_1020", "dlnP_core_1020", "share_rent_market", "housing_area_pc", "collective_share",
-               "beds_res_hukou_ratio", "beds_per_1k_res", "students_per_child", "exp_personnel_share", "exp_genpub_share",
+               "beds_per_1k_res", "students_per_child", "exp_personnel_share", "exp_genpub_share",
                "fund_fiscal_share", "fund_debt_share"]
 FISCAL_COLS = ["net_inflow_pc_k", "own_rev_pc", "gap_ratio", "fss", "exp_personnel_share", "exp_genpub_share"]
+FISCAL_COLS_ROB = ["net_inflow_pc_k_rob", "own_rev_pc_rob"]
 
 
 def winsor(s: pd.Series, p: float) -> pd.Series:
@@ -81,11 +82,13 @@ def prepare(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
         d = d[~as_bool(d["fiscal_scope_mismatch"])]
     d = d[d["group5"] != "外围市辖区"]
     min_years = int(a.get("min_fiscal_years", 2))
-    if "n_years_main" in d:
-        few = pd.to_numeric(d["n_years_main"], errors="coerce").fillna(0) < min_years
-        if few.any():
-            LOG.info(f"{int(few.sum())} 个单元主分析期收支都有数的年份少于 {min_years} 年，财政变量记为缺失")
-            d.loc[few, [c for c in FISCAL_COLS if c in d]] = np.nan
+    # 主分析期与稳健性年份各自按收支都有数的年份数判断（稳健性模型 R-b 用 *_rob 变量）
+    for ny, label, cols in (("n_years_main", "主分析期", FISCAL_COLS), ("n_years_rob", "稳健性年份", FISCAL_COLS_ROB)):
+        if ny in d:
+            few = pd.to_numeric(d[ny], errors="coerce").fillna(0) < min_years
+            if few.any():
+                LOG.info(f"{int(few.sum())} 个单元{label}收支都有数的年份少于 {min_years} 年，相应财政变量记为缺失")
+                d.loc[few, [c for c in cols if c in d]] = np.nan
     for v in LOG_VARS:
         if v in d:
             x = pd.to_numeric(d[v], errors="coerce")
@@ -170,10 +173,8 @@ MODELS = [
     M("M13c 集体户人口比例", f"collective_share ~ {FISCAL_ADD} + {CONTROLS_NOPOP}", "H5",
       "大城市、超大特大城市市辖区 > 县；ln_own_rev_pc > 0"),
     # H7 社会基础设施
-    M("M14a 床位常住与户籍口径之比", f"beds_res_hukou_ratio ~ {FISCAL} + {CONTROLS_NOPOP}", "H7",
-      "net_inflow_pc_k > 0；pop_chg_1020 < 0（该比值等于 户籍 / 常住）"),
-    M("M14b 每千常住人口床位", f"beds_per_1k_res ~ {FISCAL} + {CONTROLS_NOPOP}", "H7", S_MAIN),
-    M("M14c 在校生与 0–14 岁人口之比", f"students_per_child ~ {FISCAL} + {CONTROLS_NOPOP}", "H7", S_MAIN),
+    M("M14a 每千常住人口床位", f"beds_per_1k_res ~ {FISCAL} + {CONTROLS_NOPOP}", "H7", S_MAIN),
+    M("M14b 在校生与 0–14 岁人口之比", f"students_per_child ~ {FISCAL} + {CONTROLS_NOPOP}", "H7", S_MAIN),
     # R1 对立假说
     M("M15a 工资福利支出占比", f"exp_personnel_share ~ {FISCAL_ADD} + {CONTROLS_NOPOP}", "R1",
       "R1 成立时 net_inflow_pc_k > 0"),

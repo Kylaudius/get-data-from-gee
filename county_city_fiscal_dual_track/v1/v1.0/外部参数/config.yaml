@@ -151,6 +151,7 @@ fiscal_census:
   fiscal_years_2000: [1999, 2000, 2001]     # 预先确定的财政结构（长差分的处理变量），与五普对齐
   district_level_fiscal_prefs: []           # 已在 fiscal_county.csv 中逐区录入财政的城市（如重庆 "500000"，数据取《重庆统计年鉴》分区县表），
                                             # 这些城市不再使用《城市统计年鉴》市辖区合计，外围区也有财政数据
+  backfilled_codes: false                   # 县域财政表若来自把历史年份改写为现行代码的数据库导出表（撤县设区前的县级记录写着现行区代码），改为 true
   census_ref_date: "11-01"                  # 普查标准时点（月-日）。代码对照表填了 change_date 时，普查年当年标准时点之后的变更也会映射
   money_unit_in_raw: 万元                  # 原始财政数据的计量单位
   out_dir: 数据/中间/panel

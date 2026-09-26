@@ -230,23 +230,35 @@ BIVAR = {  # 行：人均净流入三分位（低→高）；列：人口变化�
 }
 
 
-def fig_map(df_all, gdf, fig_dir):
-    keep = ["unit_id", "net_inflow_pc", "pop_chg_1020", "excluded"]
-    d = gdf.merge(df_all[[c for c in keep if c in df_all]], on="unit_id", how="left")
+def map_colors(df_all, gdf):
+    """把指标表合并到边界上，按三分位给每个单元配色；excluded 单元为浅灰。数据不足时返回 None。"""
+    keep = [c for c in ["unit_id", "net_inflow_pc", "pop_chg_1020", "excluded"] if c in df_all]
+    # units_full.gpkg 自带 excluded 等列，同名列先从边界中去掉，否则合并后变成 excluded_x、excluded_y，排除单元不会显示为浅灰
+    gdf = gdf.drop(columns=[c for c in keep if c != "unit_id" and c in gdf])
+    d = gdf.merge(df_all[keep], on="unit_id", how="left")
     ex = d["excluded"].astype("string").str.lower().isin(["1", "true"]).fillna(False).astype(bool) \
         if "excluded" in d else pd.Series(False, index=d.index)
     if "net_inflow_pc" not in d or "pop_chg_1020" not in d:
         LOG.warning("缺少人均净流入或人口变化列，跳过图2。")
-        return
+        return None
     ok = d["net_inflow_pc"].notna() & d["pop_chg_1020"].notna() & ~ex
     if ok.sum() < 3:   # 财政或普查数据尚未准备好时，三分位无法计算，跳过本图而不是让整个脚本报错
         LOG.warning(f"人均净流入与人口变化同时非缺失的单元只有 {int(ok.sum())} 个，跳过图2。")
-        return
+        return None
     d["gq"] = pd.qcut(d.loc[ok, "net_inflow_pc"].rank(method="first"), 3, labels=False)
     d["pq"] = pd.qcut(d.loc[ok, "pop_chg_1020"].rank(method="first"), 3, labels=False)
     d["color"] = [BIVAR.get((int(a), int(b)), "#ffffff") if pd.notna(a) and pd.notna(b) else "#ffffff"
                   for a, b in zip(d["gq"], d["pq"])]
     d.loc[ex, "color"] = "#dddddd"
+    d["_excluded"] = ex
+    return d
+
+
+def fig_map(df_all, gdf, fig_dir):
+    d = map_colors(df_all, gdf)
+    if d is None:
+        return
+    ex = d["_excluded"]
     fig, ax = plt.subplots(figsize=(10, 8))
     d.to_crs("+proj=aea +lat_1=25 +lat_2=47 +lon_0=105 +datum=WGS84").plot(
         ax=ax, color=d["color"], edgecolor="#bbbbbb", linewidth=0.05)

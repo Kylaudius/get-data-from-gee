@@ -258,8 +258,12 @@ def generic_checks(ck: Check, tcols: list, example: pd.Series, c2u_codes: set | 
         elif ck.template in ("fiscal_county", "census_county"):
             pref = df[code_col].notna() & df[code_col].fillna("").str.endswith("00")
             if pref.any():
-                ck.hint(f"{int(pref.sum())} 行代码以 00 结尾，是地级或省级代码。县级表只应有县级代码，"
-                        f"东莞、中山等不设区地级市按其代码保留即可，02 会自动归入市辖区单元"
+                # 普查表中东莞、中山等不设区地级市按其代码保留，02 归入市辖区单元；
+                # 县域财政表中的这类记录会被 02 当作与市辖区财政重复而剔除，它们的财政应录入市辖区财政表
+                where = ("东莞、中山等不设区地级市的财政请录入市辖区财政表（pref_code 填其代码），"
+                         "县域财政表中的这类记录会被 02 当作重复剔除" if ck.template == "fiscal_county"
+                         else "东莞、中山等不设区地级市按其代码保留即可，02 会自动归入市辖区单元")
+                ck.hint(f"{int(pref.sum())} 行代码以 00 结尾，是地级或省级代码。县级表只应有县级代码，{where}"
                         f"（{ck.add_rows(df, pref, '地级或省级代码', code_col, code_col, year_col)}）")
         if c2u_codes and ck.template in ("fiscal_county", "census_county", "seat_points", "land_conveyance",
                                          "lgfv_debt", "special_bond", "devzone"):
@@ -465,6 +469,14 @@ def seat_checks(ck: Check, df, code_col):
 
 
 def crosswalk_checks(ck: Check, df):
+    if "change_date" in df:
+        # 与 02 相同：2020/12/1、2020.12.01、2020年12月1日 都能识别；其他写法 02 会忽略，普查年 11 月后的变更就会漏映射
+        raw = df["change_date"].astype("string").str.strip()
+        norm = raw.str.replace(r"[./年月]", "-", regex=True).str.replace("日", "", regex=False)
+        bad = raw.fillna("").ne("") & pd.to_datetime(norm, errors="coerce", format="%Y-%m-%d").isna()
+        if bad.any():
+            ck.problem(f"change_date 有 {int(bad.sum())} 行无法识别，应写作 YYYY-MM-DD"
+                       f"（{ck.add_rows(df, bad, '日期无法识别', 'change_date', 'old_code', 'change_year')}）")
     if "weight" in df:
         w = df["weight"]
         bad = w.notna() & ((w <= 0) | (w > 1))

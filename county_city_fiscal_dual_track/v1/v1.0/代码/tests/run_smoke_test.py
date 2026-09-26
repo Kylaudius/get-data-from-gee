@@ -34,6 +34,7 @@ EXCLUDED_UNIT = "659001"        # 兵团城市，应被 excluded
 LARGE_CITY = "320181"           # 城区人口表中的县级市，城区人口达到Ⅱ型大城市
 NO_SEAT = "429004"              # 故意不给驻地点的单元
 LATE_OLD, LATE_NEW = "130127", "130103"   # 普查年 12 月撤县设区：2020 年普查仍用旧代码
+Y2000_SUBITEMS = "320122"       # 1999–2001 年只录了转移支付分项、没有合计的县
 
 
 def load_module(name: str, file: str):
@@ -153,6 +154,8 @@ def write_inputs(base: Path, gdf: gpd.GeoDataFrame):
             if yr in (1999, 2000, 2001, 2009):
                 tg, ts, tr = exp * 0.3, exp * 0.2, exp * 0.05
                 r.update({"transfer_general": tg, "transfer_specific": ts, "tax_rebate": tr, "transfer_total": tg + ts + tr})
+                if c == Y2000_SUBITEMS and yr < 2009:
+                    r.pop("transfer_total")
             frows.append(r)
     (raw / "fiscal").mkdir(exist_ok=True)
     pd.DataFrame(frows).to_csv(raw / "fiscal" / "fiscal_county.csv", index=False, encoding="utf-8-sig")
@@ -204,6 +207,14 @@ def write_inputs(base: Path, gdf: gpd.GeoDataFrame):
                           "fund_loan": funds[3], "fund_self": funds[4], "fund_other": funds[5], "source": "合成"})
     (raw / "mohurd").mkdir(exist_ok=True)
     pd.DataFrame(mrows).to_csv(raw / "mohurd" / "mohurd_panel.csv", index=False, encoding="utf-8-sig")
+
+    # 乡镇街道普查（县 320122）：城关镇与县城街道 is_seat_town = 1，另一乡镇为 0；03 应改用普查常住人口作县城人口
+    (raw / "township").mkdir(exist_ok=True)
+    for yr, pops in ((2010, (52000, 18000, 30000)), (2020, (61000, 21000, 26000))):
+        pd.DataFrame([{"code12": f"320122{k:03d}000", "name": n, "county_adcode": "320122", "census_year": yr,
+                       "is_seat_town": seat, "pop_resident": pop, "source": "合成"}
+                      for k, (n, seat, pop) in enumerate(zip(("城关镇", "县城街道", "某乡"), (1, "是", 0), pops), 1)]).to_csv(
+            raw / "township" / f"census_{yr}_township.csv", index=False, encoding="utf-8-sig")
 
     # 土地出让、城投债务、专项债、开发区（万元）
     (raw / "land").mkdir(exist_ok=True)
@@ -404,6 +415,11 @@ def assertions(base: Path, ud: Path, units: pd.DataFrame, cfg: dict) -> dict:
         and by.loc[LARGE_CITY, "size_class_all"] == "Ⅱ型大城市",
         "住建部面板：县的官方中心人口与人均公园面积": by.loc["320122", "core_pop_src"] == "official"
         and pd.notna(by.loc["320122", "park_area_pc_mohurd"]),
+        "乡镇街道普查：县城人口取普查常住人口并计算县城人口变化": by.loc["320122", "core_pop_official_src"] == "census_town"
+        and np.isclose(by.loc["320122", "core_pop_official"], 82000)
+        and np.isclose(by.loc["320122", "town_pop_chg_1020"], np.log(82000 / 70000)),
+        "分母效应 = −中心人口变化": np.allclose(
+            ind["denom_effect_core"].dropna(), -ind.loc[ind["denom_effect_core"].notna(), "core_pop_chg_1020"]),
         "行政等级：北京 4，县 0": by.loc["CP110000", "admin_rank"] == 4 and by.loc["320122", "admin_rank"] == 0,
         "图与表已写出": all((res / f).exists() for f in ("table3_denominator_decomposition.csv", "table4_quadrant_town.csv",
                                                          "图表/图2_财政人口双变量地图.png", "图表/图S1_中心建成区质控.png",
@@ -439,6 +455,24 @@ def assertions(base: Path, ud: Path, units: pd.DataFrame, cfg: dict) -> dict:
                         "share_rent_market": [0.1, 0.5]})
     checks["住房来源比例按户数加权"] = np.isclose(
         m02.collapse(two, ["k"], ["households", "pop_resident"], ["share_rent_market"], m02.SHARE_WEIGHTS)["share_rent_market"].iloc[0], 0.4)
+    # 2000 期转移支付只有分项时，按分项之和作为观测值（与主分析期、2010 期一致）
+    checks["2000 期转移支付：只有分项时按观测值计算"] = by.loc[Y2000_SUBITEMS, "transfer_2000_src"] == "observed"
+    # 双变量地图：excluded 单元显示为浅灰（边界文件自带 excluded 列，合并时不能出现 excluded_x、excluded_y）
+    m04 = load_module("m04", "04_describe_and_map.py")
+    colors = m04.map_colors(ind, gpd.read_file(ud / "units_full.gpkg")).set_index("unit_id")["color"]
+    checks["双变量地图：兵团单元为浅灰"] = colors.get(EXCLUDED_UNIT) == "#dddddd"
+    # 稳健性年份收支都有数的年份少于 min_fiscal_years 时，稳健性财政变量记为缺失
+    one = ind.copy()
+    uid = one.loc[one["net_inflow_pc_k_rob"].notna() & one["group5"].eq("县"), "unit_id"].iloc[0]
+    one.loc[one["unit_id"] == uid, "n_years_rob"] = 1
+    checks["稳健性年份不足时 net_inflow_pc_k_rob 为缺失"] = pd.isna(
+        m05.prepare(one, cfg).set_index("unit_id").loc[uid, "net_inflow_pc_k_rob"])
+    # 财政口径与单元不一致的单元，财政表字段全部置为缺失
+    m03 = load_module("m03", "03_build_indicators.py")
+    mm = m03.blank_scope_mismatch(pd.DataFrame({"unit_id": ["CP500000", "CP440100"], "fiscal_scope_mismatch": [True, False],
+                                                "gen_budget_revenue_main": [1.0, 2.0], "hospital_beds_y2010": [3.0, 4.0]}))
+    checks["财政口径不一致的单元财政字段为缺失"] = (mm["gen_budget_revenue_main"].isna().tolist() == [True, False]
+                                                  and mm["hospital_beds_y2010"].isna().tolist() == [True, False])
     from common import classify_unit, load_overrides
     checks["名称缺失时按代码判别（神农架林区 429021 → 县）"] = classify_unit("429021", float("nan")) == "county"
     bad = base / "bad_overrides.csv"

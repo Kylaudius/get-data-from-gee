@@ -180,6 +180,11 @@ def main():
         log.error(f"找不到县、市政府驻地点表：{resolve(ucfg.get('seat_points_file') or '（config 未设置 seat_points_file）')}\n"
                   + SEAT_HELP)
         sys.exit(1)
+    if seats_raw is not None and seats_raw.empty and require_seats:
+        # 表存在但没有一行可用（例如经纬度写反，全部落在中国范围外），不能当作已提供驻地点
+        log.error(f"驻地点表 {resolve(ucfg['seat_points_file']).name} 中没有一行有效的代码与坐标，请检查 lon、lat 是否写反、"
+                  "代码是否为 6 位。\n" + SEAT_HELP)
+        sys.exit(1)
 
     src = resolve(ucfg["boundary_file"])
     if not src.exists():
