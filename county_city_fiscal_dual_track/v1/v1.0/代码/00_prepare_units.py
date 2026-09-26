@@ -34,7 +34,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (VERSION_DIR, atomic_write_csv, classify_unit, get_logger,  # noqa: E402
-                    load_config, load_overrides, norm_adcode, pref_code, resolve)
+                    load_config, load_overrides, norm_adcode, pref_code, read_table, resolve)
 
 # 中国常用等积投影（Albers Equal Area，双标准纬线 25°N/47°N，中央经线 105°E），用于计算面积
 CHINA_ALBERS = "+proj=aea +lat_1=25 +lat_2=47 +lat_0=0 +lon_0=105 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
@@ -117,7 +117,9 @@ def main():
     # -----------------------------------------------------------------------
     units = gdf.dissolve(
         by="unit_id", as_index=False,
-        aggfunc={"unit_type": "first", "prov_code": "first", "pref_code": "first", "name": lambda s: "、".join(s)},
+        aggfunc={"unit_type": "first", "prov_code": "first", "pref_code": "first",
+                 # 名称缺失（None/NaN）的成员跳过，避免拼接成员名时报错
+                 "name": lambda s: "、".join(str(x) for x in s if isinstance(x, str) and x)},
     )
     units = units.rename(columns={"name": "member_names"})
     units["n_members"] = units["unit_id"].map(c2u["unit_id"].value_counts())
@@ -151,13 +153,16 @@ def main():
     # -----------------------------------------------------------------------
     seat_file = ucfg.get("seat_points_file")
     if seat_file and resolve(seat_file).exists():
-        s = pd.read_csv(resolve(seat_file), dtype={"adcode": str}, encoding="utf-8-sig")
+        # read_table 自动识别 UTF-8 / GBK 编码（Excel 另存的中文 CSV 常为 GBK）
+        s = read_table(resolve(seat_file), code_cols=("adcode",))
         s["adcode"] = s["adcode"].map(norm_adcode)
+        s = s.dropna(subset=["adcode"])
         s["unit_id"] = s["adcode"].map(dict(zip(c2u["adcode"], c2u["unit_id"])))
         is_pref = s["adcode"].str[4:] == "00"
-        s.loc[is_pref, "unit_id"] = "CP" + s.loc[is_pref, "adcode"].map(
-            lambda c: c[:2] + "0000" if c[:2] in ("11", "12", "31", "50") else c)
-        s = s.dropna(subset=["unit_id"]).drop_duplicates("unit_id")
+        s.loc[is_pref, "unit_id"] = "CP" + s.loc[is_pref, "adcode"].map(pref_code)
+        # 同一市辖区单元若同时填了“地级市政府驻地（xxxx00）”和“某个区政府驻地”，优先用地级市政府驻地
+        s = (s.assign(_is_pref=is_pref).sort_values("_is_pref", ascending=False, kind="stable")
+             .dropna(subset=["unit_id"]).drop_duplicates("unit_id"))
         seats = gpd.GeoDataFrame(s[["unit_id", "adcode"]], geometry=gpd.points_from_xy(s["lon"], s["lat"]), crs=4326)
         seats.to_file(out_dir / "seats.geojson", driver="GeoJSON")
         log.info(f"驻地点：匹配到 {len(seats)} 个分析单元。")

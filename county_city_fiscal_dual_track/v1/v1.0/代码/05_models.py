@@ -113,10 +113,14 @@ def fit_all(d: pd.DataFrame, cluster: str):
             if missing:
                 notes.append(f"### {name}\n跳过：缺少变量 {missing}\n")
                 continue
-            dd = d.dropna(subset=needed + [cluster])
+            dd = d.dropna(subset=needed + [cluster]).copy()
             if len(dd) < 50:
                 notes.append(f"### {name}\n跳过：有效样本 {len(dd)} < 50\n")
                 continue
+            # 删除本模型样本中没有单元的分组（例如试点省份没有超大特大城市），
+            # 否则设计矩阵出现全 0 列，结果表里会出现系数 0、标准误 0 的无意义行
+            if isinstance(dd["group5"].dtype, pd.CategoricalDtype):
+                dd["group5"] = dd["group5"].cat.remove_unused_categories()
             res = smf.ols(formula, data=dd).fit(cov_type="cluster", cov_kwds={"groups": pd.factorize(dd[cluster])[0]})
             for term in res.params.index:
                 if term.startswith(("C(prov_code)", "C(pref_code)")) or term == "Intercept":

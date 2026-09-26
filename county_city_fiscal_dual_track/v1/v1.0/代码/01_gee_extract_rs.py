@@ -185,13 +185,25 @@ def preflight(cfg):
 # 代码块 4：服务器端的中心建成区识别
 # 目的：在每个分析单元内，把 GHSL 建成面积 ≥ 阈值的 100 m 栅格矢量化为连通斑块；
 #       若提供驻地点，选“驻地点缓冲区内面积最大的斑块”，否则选最大斑块，作为县城/中心城区。
+#       选中的斑块默认“填补内部孔洞”（config 中 core.fill_holes）：城区内部的公园、湖泊、广场、
+#       大型运动场等建成比例低于阈值的栅格，矢量化后会成为多边形内部的“洞”；不填补的话，
+#       这些公园绿地会被排除在中心建成区之外（公园代理、绿地指标系统性偏低），并被算进 5 km 环带本底。
 #       单元内没有达到最小面积的斑块时，退化为单元几何中心 1 km 缓冲区并标记 core_method。
+#       ee.Algorithms.If 在服务器端只计算被选中的分支，所以空集合时不会去取“空斑块”的几何。
 # 结果：返回带 core 几何的 ee.Feature，属性 unit_id、core_method、core_area_m2。
 # ===========================================================================
+def fill_holes(geom):
+    """只保留多边形（或多部件多边形每个部件）的外环，去掉内部孔洞；各部件合并为一个几何。"""
+    parts = ee.Geometry(geom).geometries()
+    shells = parts.map(lambda p: ee.Geometry.Polygon(ee.List(ee.Geometry(p).coordinates()).slice(0, 1)))
+    return ee.Geometry.MultiPolygon(shells).dissolve(10)
+
+
 def core_feature(unit: "ee.Feature", built_img: "ee.Image", ccfg: dict, seats: "ee.FeatureCollection | None"):
     geom = unit.geometry()
-    mask = built_img.select("built_surface").gte(ccfg["ghsl_threshold_m2"]).selfMask().rename("b").toInt()
-    vec = mask.reduceToVectors(geometry=geom, scale=100, crs=built_img.projection(),
+    bs = built_img.select("built_surface")      # 只取单个波段再取投影，避免多波段投影不一致时报错
+    mask = bs.gte(ccfg["ghsl_threshold_m2"]).selfMask().rename("b").toInt()
+    vec = mask.reduceToVectors(geometry=geom, scale=100, crs=bs.projection(),
                                geometryType="polygon", eightConnected=True,
                                labelProperty="b", maxPixels=int(1e10), bestEffort=False)
     vec = vec.map(lambda f: f.set("a", f.geometry().area(100)))
@@ -203,11 +215,13 @@ def core_feature(unit: "ee.Feature", built_img: "ee.Image", ccfg: dict, seats: "
     if seats is not None:
         seat = seats.filter(ee.Filter.eq("unit_id", unit.get("unit_id")))
         near = cands.filterBounds(seat.geometry().buffer(ccfg["seat_buffer_m"]))
-        use_seat = seat.size().gt(0).And(near.size().gt(0))
+        # 没有驻地点的单元不去缓冲“空几何”：用 If 保证只有存在驻地点时才计算 near（And 会同时计算两侧）
+        use_seat = ee.Number(ee.Algorithms.If(seat.size().gt(0), near.size(), 0)).gt(0)
         chosen = ee.Feature(ee.Algorithms.If(use_seat, near.sort("a", False).first(), largest))
         method = ee.String(ee.Algorithms.If(use_seat, "seat_patch", "largest_patch"))
     fallback = geom.centroid(100).buffer(1000)
-    g = ee.Geometry(ee.Algorithms.If(has, chosen.geometry(), fallback))
+    patch_geom = fill_holes(chosen.geometry()) if ccfg.get("fill_holes", True) else chosen.geometry()
+    g = ee.Geometry(ee.Algorithms.If(has, patch_geom, fallback))
     return ee.Feature(g, {
         "unit_id": unit.get("unit_id"),
         "core_method": ee.Algorithms.If(has, method, "fallback_centroid_1km"),
@@ -220,17 +234,21 @@ def core_feature(unit: "ee.Feature", built_img: "ee.Image", ccfg: dict, seats: "
 # 目的：reduceRegions 的输出字段名在单波段时是 'sum'/'mean'，多波段时是波段名；
 #       这里统一给波段加前缀，并在单波段时强制命名，保证字段名稳定。
 #       计数型栅格（人口、面积、体量、灯光）必须在“原生网格”上求和，否则重采样会改变总量，
-#       所以 crs 取影像自身投影，scale 取原生分辨率。
+#       所以 crs 取影像自身投影（ee.Projection，含原生像元大小与网格起点），scale 传 None：
+#       GEE 规定 crs 与 scale 同时给出时会把网格“重缩放”到 scale，哪怕只差一点也会错位重采样
+#       （例如 CCNL 原生约 927.7 m，若写 scale=1000 求和会少约 14%）。
 # 结果：返回带新属性的 ee.FeatureCollection。
 # ===========================================================================
 def reduce_add(fc, img, names: list, kind: str, scale, prefix: str, crs=None, tile_scale=4):
-    """names 为影像波段名（客户端已知），输出字段名 = prefix + 波段名。"""
+    """names 为影像波段名（客户端已知），输出字段名 = prefix + 波段名；scale=None 且给出 crs 时按原生网格计算。"""
     out = [prefix + n for n in names]
     img = img.select(list(range(len(names))), out)
     red = ee.Reducer.sum() if kind == "sum" else ee.Reducer.mean()
     if len(names) == 1:
         red = red.setOutputs(out)
-    kw = dict(collection=fc, reducer=red, scale=scale, tileScale=tile_scale)
+    kw = dict(collection=fc, reducer=red, tileScale=tile_scale)
+    if scale is not None:
+        kw["scale"] = scale
     if crs is not None:
         kw["crs"] = crs
     return img.reduceRegions(**kw)

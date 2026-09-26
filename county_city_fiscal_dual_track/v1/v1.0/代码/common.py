@@ -232,7 +232,8 @@ def pref_code(adcode: str) -> str:
 def classify_unit(adcode: str, name: str | None, overrides: dict | None = None) -> str:
     if overrides and adcode in overrides:
         return overrides[adcode]
-    name = (name or "").strip()
+    # 名称缺失时，边界文件读入的可能是 None、空字符串或 NaN（浮点数），统一当作空字符串，改用代码规则判断
+    name = name.strip() if isinstance(name, str) else ""
     if adcode[2:] != "0000" and adcode[4:] == "00":
         return "pref_city_no_district"
     if name.endswith(("林区", "特区")):
@@ -244,8 +245,8 @@ def classify_unit(adcode: str, name: str | None, overrides: dict | None = None) 
     if name.endswith(("县", "旗")):
         return "county"
     tail = int(adcode[4:])
-    if adcode[2:4] == "90":            # 省直辖县级行政单位（如湖北仙桃 429004）
-        return "county_city"
+    if adcode[2:4] == "90":            # 省直辖县级行政单位：01–20 为县级市（如湖北仙桃 429004），
+        return "county_city" if tail <= 20 else "county"   # 21 起为县/林区（如海南定安县 469021、神农架林区 429021）
     if 1 <= tail <= 20:
         return "district"
     if 81 <= tail <= 99:

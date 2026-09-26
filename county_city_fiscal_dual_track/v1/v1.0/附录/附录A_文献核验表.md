@@ -1,6 +1,6 @@
 # 附录A 文献核验表（v1.0）
 
-报告正文采用作者年份制引文。为便于阅读，只在同姓同年（如 S. Wu 与 W. Wu）或需要区分何深静 (Shenjing He) 与其他 He 姓作者时标注名字首字母；投稿时按目标期刊格式统一。
+报告正文采用作者年份制引文。同姓第一作者较多（如 Wu、He、Li、Zhang、Chen），为便于区分，这些作者在正文中标注名字首字母，何深静 (Shenjing He) 写作 S. He；投稿时按目标期刊格式统一。
 
 本表收录研究设计报告引用的全部期刊文献。每一条都按 DOI 在 Scite 中取回元数据（标题、作者、期刊、年、卷、期、页），与引用信息逐项比对；核心发现只依据 Scite 或 Consensus 实际返回的摘要、全文片段或引文片段撰写，证据原文摘录附在条目下。本环境的网络策略阻断了 doi.org 与出版社网站，无法用浏览器打开 DOI 页面，这是与研究者要求的核验方式不同之处；投稿前请在浏览器中逐条打开 DOI 复核。
 
@@ -515,7 +515,7 @@
 - 核验途径：Scite DOI lookup (metadata + abstract); no editorial notice
 - 核心发现：由月度无云平均辐亮度生成一致处理的2012–2019年全球VIIRS年度夜光（V.2），用12个月中值去除火点、极光等异常值，并以3×3极差（DR）滤除背景噪声。各年处理方法和阈值一致，适合做变化检测。
 - 证据摘录：The key advantages of the V.2 time series include consistent processing and threshold levels across all years, thus optimizing the set for change detection analyses.
-- 本研究中的用途：用NOAA/VIIRS/DNB/ANNUAL_V21和V22（经STAC确认，覆盖2012–2024）计算县、区的夜光总量、人均夜光和单位建筑体积夜光，识别“高基建、低活力”的县城新区，作为判断公共品过度供给与人口流失的活动强度指标。
+- 本研究中的用途：2020 年用 NOAA/VIIRS/DNB/ANNUAL_V21（2012 至 2021 年）计算县、区的夜光总量、单位建成面积与单位建筑体量夜光；ANNUAL_V22 的实际覆盖年份在 STAC 中说明不一，使用前须核实（见附录D）。
 
 **[69]** Gong, P., Li, X., Wang, J., Bai, Y., Chen, B., Hu, T., Liu, X., Xu, B., Yang, J., Zhang, W., & Zhou, Y. (2020b). Annual maps of global artificial impervious area (GAIA) between 1985 and 2018. *Remote Sensing of Environment*, *236*, 111510. https://doi.org/10.1016/j.rse.2019.111510
 

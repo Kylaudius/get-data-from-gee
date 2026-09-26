@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import atomic_write_csv, get_logger, load_config, norm_adcode, read_table, resolve  # noqa: E402
+from common import atomic_write_csv, get_logger, load_config, norm_adcode, pref_code, read_table, resolve  # noqa: E402
 
 LOG = get_logger("03_build_indicators")
 
@@ -45,7 +45,8 @@ CODEBOOK = [
     ("land_dep", "土地出让依赖度", "land-conveyance dependence", "国有土地使用权出让收入 / 一般公共预算收入（仅市辖区单元，可选）", "比值"),
     ("fss_2010", "财政自给率（2010 期）", "fiscal self-sufficiency, 2009–2011", "2009–2011 年均收入 / 年均支出", "比值"),
     # 人口
-    ("pop_chg_1020", "常住人口对数变化 2010–2020", "log change of resident population", "ln(P2020 / P2010)，普查常住人口", "对数差"),
+    ("pop_chg_1020", "常住人口对数变化 2010–2020", "log change of resident population",
+     "ln(P2020 / P2010)，普查常住人口；任一期人口为 0 或缺失时不计算", "对数差"),
     ("pop_chg_0010", "常住人口对数变化 2000–2010", "log change of resident population", "ln(P2010 / P2000)", "对数差"),
     ("res_hukou_ratio", "常住/户籍人口比", "resident-to-registered ratio", "2020 常住人口 / 户籍人口；<1 表示人口净流出", "比值"),
     ("urb_rate_2020", "城镇化率 2020", "urbanization rate", "城镇人口 / 常住人口", "比值"),
@@ -81,7 +82,7 @@ CODEBOOK = [
     ("road_share_2018", "道路面占比（2018）", "road surface share (GHS-BUILT-C)", "GHSL 2018 聚落特征 5 类面积 / 各地类面积之和", "比值"),
     ("park_pc_core", "人均公园面积（可选）", "park area per capita", "公园多边形面积 / 中心建成区人口（需提供公园数据）", "m²/人"),
     ("park_access_share", "公园步行可达人口比例（可选）", "share of population within walking distance of a park",
-     "公园 500 m 缓冲区内人口 / 中心建成区人口", "比值"),
+     "公园 500 m 缓冲区内的 GHS-POP 人口 / 中心建成区 GHS-POP 人口", "比值"),
     ("floor_res_pc_core", "人均住宅建筑面积（遥感估算）", "residential floor area per capita (GHSL volume)",
      "(总建筑体量 − 非住宅体量) / 层高 / 中心建成区人口", "m²/人"),
     ("floor_res_pc_unit", "人均住宅建筑面积（单元，遥感估算）", "residential floor area per resident",
@@ -100,7 +101,8 @@ CODEBOOK = [
      "住建部人均公园绿地面积 / 遥感人均绿地面积", "比值"),
     # 分组
     ("city_size_class", "城市规模等级", "city size class (State Council 2014)", "按城区常住人口（万人）套用国发〔2014〕51号标准；超大特大按七普名单", "类别"),
-    ("group5", "五类分组", "five-group typology", "超大特大城市市辖区 / 大城市市辖区 / 中小城市市辖区 / 县级市 / 县", "类别"),
+    ("group5", "五类分组", "five-group typology",
+     "超大特大城市市辖区 / 大城市市辖区 / 中小城市市辖区 / 县级市 / 县；另有 外围市辖区，以及城区人口缺失、无法分级的 市辖区（规模未知）", "类别"),
     ("quadrant", "财政—人口四象限", "fiscal–demographic quadrant", "财政自给率是否 ≥ 阈值 × 常住人口是否增长", "类别"),
 ]
 
@@ -111,10 +113,21 @@ def export_codebook(path: Path):
     return cb
 
 
+def norm_pref(c):
+    """地级代码规范化：直辖市常写作 110100（“北京市市辖区”）或 110000，统一为分析单元使用的 110000。"""
+    return pref_code(c) if isinstance(c, str) else None
+
+
 def safe_div(a, b):
     a = pd.to_numeric(a, errors="coerce")
     b = pd.to_numeric(b, errors="coerce")
     return a / b.where(b != 0)
+
+
+def safe_log(x):
+    """取自然对数；0、负数与缺失返回缺失（避免 ln(0) = -inf 进入后续统计与回归）。"""
+    x = pd.to_numeric(x, errors="coerce")
+    return np.log(x.where(x > 0))
 
 
 def col(df, name):
@@ -125,7 +138,8 @@ def col(df, name):
 # ===========================================================================
 # 代码块 2：城市规模与五类分组
 # 目的：市辖区单元按城区常住人口套用 2014 年标准分级；超大、特大城市以官方七普名单为准（外部参数/megacities_2020.csv）；
-#       县级市、县各自成组；district_outer（如重庆主城区以外的市辖区）单列。
+#       县级市、县各自成组；district_outer（如重庆主城区以外的市辖区）单列；
+#       城区人口缺失、又不在七普名单中的市辖区单元无法分级，标为“市辖区（规模未知）”，不默认归入中小城市。
 # 结果：新增 city_size_class、group5 两列。
 # ===========================================================================
 def assign_groups(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
@@ -147,7 +161,8 @@ def assign_groups(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     mc_path = resolve(a["megacity_file"])
     if mc_path.exists():
         mc = read_table(mc_path, code_cols=("pref_code",))
-        mc["unit_id"] = "CP" + mc["pref_code"].map(norm_adcode)
+        mc["unit_id"] = "CP" + mc["pref_code"].map(norm_adcode).map(norm_pref)
+        mc = mc.dropna(subset=["unit_id"]).drop_duplicates("unit_id")   # 名单中重复的城市只取一行，避免合并后行数增加
         df = df.merge(mc[["unit_id", "class_zh"]].rename(columns={"class_zh": "mega_class"}), on="unit_id", how="left")
         df["city_size_class"] = df["mega_class"].fillna(df["city_size_class"])
         # 名单外但城区人口达到特大标准的城市（与名单口径不一致），降为 Ⅰ型大城市并记录
@@ -162,6 +177,11 @@ def assign_groups(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     g[df["unit_type"] == "district_outer"] = "外围市辖区"
     cp = df["unit_type"] == "city_proper"
     g[cp] = "中小城市市辖区"
+    unknown = cp & df["city_size_class"].isna()
+    if unknown.any():
+        LOG.warning(f"{int(unknown.sum())} 个市辖区单元缺少城区人口、无法分级，group5 标为“市辖区（规模未知）”，"
+                    f"不进入五类比较与回归：{df.loc[unknown, 'unit_id'].tolist()[:20]}")
+    g[unknown] = "市辖区（规模未知）"
     g[cp & df["city_size_class"].isin(["Ⅰ型大城市", "Ⅱ型大城市"])] = "大城市市辖区"
     g[cp & df["city_size_class"].isin(["超大城市", "特大城市"])] = "超大特大城市市辖区"
     df["group5"] = g
@@ -190,8 +210,8 @@ def compute(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     df["land_dep"] = safe_div(col(df, "land_conveyance_revenue_main"), rev)
     df["fss_2010"] = safe_div(col(df, "gen_budget_revenue_y2010"), col(df, "gen_budget_expenditure_y2010"))
 
-    df["pop_chg_1020"] = np.log(safe_div(p20, p10))
-    df["pop_chg_0010"] = np.log(safe_div(p10, p00))
+    df["pop_chg_1020"] = safe_log(safe_div(p20, p10))
+    df["pop_chg_0010"] = safe_log(safe_div(p10, p00))
     df["res_hukou_ratio"] = safe_div(p20, hukou)
     df["urb_rate_2020"] = safe_div(col(df, "pop_urban_2020"), p20)
     df["share_hukou_elsewhere"] = safe_div(col(df, "pop_hukou_elsewhere_2020"), p20)
@@ -227,7 +247,9 @@ def compute(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     df["road_share_2018"] = safe_div(col(df, "c_road_m2_2018"), wc_total)
     df["park_pc_core"] = safe_div(col(df, "c_park_m2_2020"), core_pop)
     park_pop = [c for c in df.columns if c.startswith("c_pop_park")]
-    df["park_access_share"] = safe_div(df[park_pop[0]], core_pop) if park_pop else np.nan
+    # 分子是未重标定的 GHS-POP，分母也必须用同一口径的 GHS-POP（与 greenpatch_access_share 一致），
+    # 若用普查重标定后的 core_pop，比例会随重标定系数偏离，甚至大于 1
+    df["park_access_share"] = safe_div(df[park_pop[0]], col(df, "c_pop_expo_2020")) if park_pop else np.nan
     df["floor_res_pc_core"] = safe_div((col(df, "c_bv_2020") - col(df, "c_bvn_2020")) / storey, core_pop)
     df["floor_res_pc_unit"] = safe_div((col(df, "u_bv_2020") - col(df, "u_bvn_2020")) / storey, p20)
     df["ntl_per_built"] = safe_div(col(df, "c_ntl_viirs_2020"), col(df, "c_bs_2020") / 1e6)
@@ -235,7 +257,7 @@ def compute(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     df["ntl_pc"] = safe_div(col(df, "u_ntl_viirs_2020"), p20)
 
     a20, a10 = col(df, "core_area_m2"), col(df, "core2010_area_m2")
-    df["core_growth_1020"] = np.log(safe_div(a20, a10))
+    df["core_growth_1020"] = safe_log(safe_div(a20, a10))
     pc = df["pop_chg_1020"]
     df["lcrpgr"] = safe_div(df["core_growth_1020"], pc.where(pc.abs() >= 0.01))
     df["land_pop_diverge"] = ((df["core_growth_1020"] > 0) & (pc < 0)).astype("Int64").where(
@@ -277,7 +299,7 @@ def load_all(cfg) -> pd.DataFrame:
     up = resolve(cfg["fiscal_census"]["city_urban_pop_file"])
     if up.exists():
         u = read_table(up, code_cols=("pref_code",))
-        u["unit_id"] = "CP" + u["pref_code"].map(norm_adcode)
+        u["unit_id"] = "CP" + u["pref_code"].map(norm_adcode).map(norm_pref)
         u["urban_pop_total_10k"] = pd.to_numeric(u["urban_pop_10k"], errors="coerce") + \
             pd.to_numeric(col(u, "urban_temp_pop_10k"), errors="coerce").fillna(0)
         df = df.merge(u[["unit_id", "urban_pop_total_10k"]].drop_duplicates("unit_id"), on="unit_id", how="left")
@@ -285,8 +307,8 @@ def load_all(cfg) -> pd.DataFrame:
     if mp.exists():
         m = read_table(mp, code_cols=("code",))
         m["code"] = m["code"].map(norm_adcode)
-        m["unit_id"] = np.where(m["level"].astype(str).str.contains("城市") & m["code"].str[4:].eq("00"),
-                                "CP" + m["code"], m["code"])
+        is_cp = m["level"].astype(str).str.contains("城市") & m["code"].str[4:].eq("00").fillna(False).astype(bool)
+        m["unit_id"] = np.where(is_cp, "CP" + m["code"].map(norm_pref), m["code"])
         keep = ["unit_id", "park_green_pc_m2", "green_ratio_builtup_pct", "green_cover_builtup_pct", "built_area_km2"]
         m = m[[c for c in keep if c in m]].drop_duplicates("unit_id")
         for c in m.columns[1:]:

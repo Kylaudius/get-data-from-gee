@@ -34,9 +34,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import atomic_write_csv, atomic_write_text, get_logger, load_config, read_table, resolve  # noqa: E402
 
 LOG = get_logger("04_describe_and_map")
-GROUP_ORDER = ["超大特大城市市辖区", "大城市市辖区", "中小城市市辖区", "县级市", "县", "外围市辖区"]
+GROUP_ORDER = ["超大特大城市市辖区", "大城市市辖区", "中小城市市辖区", "县级市", "县", "外围市辖区", "市辖区（规模未知）"]
 GROUP_COLORS = {"超大特大城市市辖区": "#b2182b", "大城市市辖区": "#ef8a62", "中小城市市辖区": "#fddbc7",
-                "县级市": "#67a9cf", "县": "#2166ac", "外围市辖区": "#999999"}
+                "县级市": "#67a9cf", "县": "#2166ac", "外围市辖区": "#999999", "市辖区（规模未知）": "#cccccc"}
 
 
 # ===========================================================================
@@ -86,7 +86,9 @@ def table1(df: pd.DataFrame) -> pd.DataFrame:
         if "pop_resident_2020" in d:
             r["常住人口(万人)"] = round(d["pop_resident_2020"].sum() / 1e4, 1)
             r["人口占比"] = round(d["pop_resident_2020"].sum() / total_pop, 3) if total_pop else np.nan
-            r["人口收缩单元比例"] = round((d["pop_chg_1020"] < 0).mean(), 3)
+            # 只在人口变化非缺失的单元中计算比例（缺失单元不能算作“未收缩”）
+            pc = d["pop_chg_1020"].dropna() if "pop_chg_1020" in d else pd.Series(dtype=float)
+            r["人口收缩单元比例"] = round((pc < 0).mean(), 3) if len(pc) else np.nan
         for v, name in TABLE1_VARS:
             if v in d and d[v].notna().any():
                 r[f"{name}·中位数"] = round(d[v].median(), 3)
@@ -130,6 +132,9 @@ BIVAR = {  # 行：缺口三分位（低→高）；列：人口变化三分位�
 def fig1(df, gdf, fig_dir):
     d = gdf.merge(df[["unit_id", "gap_pc_res", "pop_chg_1020"]], on="unit_id", how="left")
     ok = d["gap_pc_res"].notna() & d["pop_chg_1020"].notna()
+    if ok.sum() < 3:   # 财政或普查数据尚未准备好时，三分位无法计算，跳过本图而不是让整个脚本报错
+        LOG.warning(f"人均财政缺口与人口变化同时非缺失的单元只有 {int(ok.sum())} 个，跳过图 1。")
+        return
     d["gq"] = pd.qcut(d.loc[ok, "gap_pc_res"].rank(method="first"), 3, labels=False)
     d["pq"] = pd.qcut(d.loc[ok, "pop_chg_1020"].rank(method="first"), 3, labels=False)
     d["color"] = [BIVAR.get((int(a), int(b)), "#ffffff") if pd.notna(a) and pd.notna(b) else "#ffffff"
@@ -154,11 +159,19 @@ def fig1(df, gdf, fig_dir):
 
 
 def fig2(df, fig_dir):
+    if not {"tree_pc_core", "fss", "pop_resident_2020"} <= set(df.columns):
+        LOG.warning("缺少人均树木覆盖、财政自给率或 2020 常住人口列，跳过图 2。")
+        return
     d = df[df["tree_pc_core"].gt(0) & df["fss"].notna()]
+    if d.empty:   # 遥感或财政数据尚未准备好
+        LOG.warning("人均树木覆盖与财政自给率同时非缺失的单元为 0 个，跳过图 2。")
+        return
     fig, ax = plt.subplots(figsize=(8, 6))
     for g in [x for x in GROUP_ORDER if x in set(d["group5"])]:
         s = d[d["group5"] == g]
-        size = 5 + 60 * np.sqrt(s["pop_resident_2020"].fillna(0) / max(d["pop_resident_2020"].max(), 1))
+        pmax = d["pop_resident_2020"].max()
+        pmax = pmax if pd.notna(pmax) and pmax > 0 else 1.0   # 人口全缺失时点大小统一，而不是变成 NaN（不显示）
+        size = 5 + 60 * np.sqrt(s["pop_resident_2020"].fillna(0) / pmax)
         ax.scatter(s["fss"], s["tree_pc_core"], s=size, alpha=0.6, color=GROUP_COLORS[g], label=g, linewidths=0)
     ax.set_yscale("log")
     ax.set_xlabel("财政自给率（一般公共预算收入 / 支出）")
@@ -169,6 +182,9 @@ def fig2(df, fig_dir):
 
 
 def fig3(df, fig_dir):
+    if not any(v in df and df[v].gt(0).any() for v in ("exp_pc_res", "exp_pc_hukou")):
+        LOG.warning("人均财政支出全部缺失，跳过图 3。")
+        return
     groups = [x for x in GROUP_ORDER if x in set(df["group5"])]
     fig, ax = plt.subplots(figsize=(9, 5))
     pos = np.arange(len(groups))
