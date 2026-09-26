@@ -1418,10 +1418,11 @@ def run_annual(cfg, adir, out_dir, prefix, ids_all, size, big, thr, make_fc, sea
         return fc
 
     manifest = plan_chunks(adir / f"{prefix}_manifest.json", ids_all, size, big, thr)
+    idset = set(ids_all)
     jobs = []
     for gname, kind, years in groups:
         for i, ch in enumerate(manifest["chunks"]):
-            jobs.append((f"{prefix}_{gname}_{i:04d}", [u for u in ch if u in set(ids_all)],
+            jobs.append((f"{prefix}_{gname}_{i:04d}", [u for u in ch if u in idset],
                          lambda ids, kind=kind, years=years: fetch_annual(
                              build_annual(make_fc(ids), make_cores(ids), cfg, kind, years)),
                          gname, len(ch)))

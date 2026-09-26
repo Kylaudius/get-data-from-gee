@@ -1,2 +1,2 @@
-﻿old_code,old_name,new_code,new_name,change_year,change_type,weight,source
-XXXXXX,示例：旧代码（撤县设区前）,YYYYYY,示例：新代码（撤县设区后）,2019,撤县设区,1,民政部行政区划变更公告
+﻿old_code,old_name,new_code,new_name,change_year,change_date,change_type,weight,source
+XXXXXX,示例：旧代码（撤县设区前）,YYYYYY,示例：新代码（撤县设区后）,2019,2019-12-18,撤县设区,1,民政部行政区划变更公告；change_date 为国务院批复日期（YYYY-MM-DD，可留空），普查年 11 月 1 日之后的变更靠它识别

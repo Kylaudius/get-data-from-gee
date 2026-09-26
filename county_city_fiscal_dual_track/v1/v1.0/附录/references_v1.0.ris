@@ -1441,3 +1441,87 @@ EP  - 42
 DO  - 10.1111/0033-0124.10042
 UR  - https://doi.org/10.1111/0033-0124.10042
 ER  - 
+
+TY  - JOUR
+AU  - Yang, J.
+AU  - Huang, X.
+PY  - 2021
+TI  - The 30 m annual land cover dataset and its dynamics in China from 1990 to 2019
+JO  - Earth System Science Data
+VL  - 13
+IS  - 8
+SP  - 3907
+EP  - 3925
+DO  - 10.5194/essd-13-3907-2021
+UR  - https://doi.org/10.5194/essd-13-3907-2021
+N1  - 数据集本身存于 Zenodo（10.5281/zenodo.4417810）；GEE 社区目录路径未核验
+ER  - 
+
+TY  - JOUR
+AU  - Hansen, M. C.
+AU  - Potapov, P. V.
+AU  - Moore, R.
+AU  - Hancher, M.
+AU  - Turubanova, S. A.
+AU  - Tyukavina, A.
+AU  - Thau, D.
+AU  - Stehman, S. V.
+AU  - Goetz, S. J.
+AU  - Loveland, T. R.
+AU  - Kommareddy, A.
+AU  - Egorov, A.
+AU  - Chini, L.
+AU  - Justice, C. O.
+AU  - Townshend, J. R. G.
+PY  - 2013
+TI  - High-resolution global maps of 21st-century forest cover change
+JO  - Science
+VL  - 342
+IS  - 6160
+SP  - 850
+EP  - 853
+DO  - 10.1126/science.1244693
+UR  - https://doi.org/10.1126/science.1244693
+N1  - Scite 只返回前 3 位作者，完整作者表取自 GEE STAC 目录 UMD/hansen/global_forest_change 的 sci:citation
+ER  - 
+
+TY  - JOUR
+AU  - Kajita, S.
+PY  - 2001
+TI  - Public investment as a social policy in remote rural areas in Japan
+JO  - Geographical Review of Japan, Series B
+VL  - 74
+IS  - 2
+SP  - 147
+EP  - 158
+DO  - 10.4157/grj1984b.74.147
+UR  - https://doi.org/10.4157/grj1984b.74.147
+ER  - 
+
+TY  - JOUR
+AU  - Nishino, T.
+PY  - 2015
+TI  - Discussion of structure and content of early adopting municipalities' public facility reorganization plans
+JO  - Journal of Architecture and Planning (Transactions of AIJ)
+VL  - 80
+IS  - 714
+SP  - 1775
+EP  - 1785
+DO  - 10.3130/aija.80.1775
+UR  - https://doi.org/10.3130/aija.80.1775
+N1  - 正文为日文，英文题名与摘要取自 Scite；投稿时按目标期刊要求决定是否附日文原题
+ER  - 
+
+TY  - JOUR
+AU  - Musha, T.
+PY  - 2021
+TI  - How can cities be compacted? Logic and reality of the location normalization plan
+JO  - E-journal GEO
+VL  - 16
+IS  - 1
+SP  - 57
+EP  - 69
+DO  - 10.4157/ejgeo.16.57
+UR  - https://doi.org/10.4157/ejgeo.16.57
+N1  - 正文为日文，英文题名与摘要取自 Scite；投稿时按目标期刊要求决定是否附日文原题
+ER  - 

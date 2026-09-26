@@ -32,6 +32,7 @@ gee:
   out_dir: 数据/中间/gee
   units_source: local            # local = 每批从本地 GeoJSON 发送（免上传）；asset = 读取已上传的 GEE 表格资产（全国运行更稳）
   units_asset: projects/your-gcp-project-id/assets/units_for_gee   # units_source 为 asset 时使用
+  units_did_asset: null          # 可选：准实验单元层（units_did_for_gee）上传后的 asset 路径；null = --units did 时从本地发送几何
   years: [2010, 2020]            # 与第六、七次人口普查对齐；GHSL 为 5 年一期
   green_year: 2020               # WorldCover v100、Sentinel-2、Dynamic World、ERA5 的年份
   green_months: [5, 9]           # 生长季（5–9 月）合成
@@ -84,13 +85,14 @@ gee:
     gaia_years: [2000, 2018]     # 起止年份（含）
     viirs_years: [2013, 2021]
     dw_years: [2016, 2024]
+    dw_years_per_request: 3      # Dynamic World 每次请求包含的年份数，超时就调小
     out_subdir: annual
   exposure_radius_m: 500         # 人口加权绿地暴露的邻域半径（Chen et al. 2022 主设定；敏感性检验改为 100/1000/1500）
   core:
     ghsl_threshold_m2: 2000      # 100 m 栅格内建成面积 ≥ 2000 m²（20%）判为建成
     min_patch_km2: 0.5           # 小于此面积的斑块不作为县城/中心城区候选
     seat_buffer_m: 1500          # 驻地点缓冲距离
-    closing_radius_m: 200        # 矢量化前对建成掩膜做形态学闭运算（先膨胀后腐蚀），连接被河流、道路、铁路隔开的斑块；0 = 不做
+    closing_radius_m: 200        # 矢量化前对建成掩膜做形态学闭运算（先膨胀后腐蚀），半径 r 可连接宽度约 2r 以内的河流、道路、铁路间隙；0 = 不做
     fill_holes: true             # 填补所选斑块内部孔洞（城区内公园、湖泊、广场等建成比例低于阈值的栅格）；false = 保留孔洞
   worldcover_classes:            # ESA WorldCover v100 地类代码（附录D 已按 GEE STAC 核验）
     tree: 10
@@ -168,6 +170,7 @@ analysis:
   admin_rank_file: 外部参数/admin_rank.csv   # 行政等级（直辖市、副省级、省会、一般地级市）
   exclude_code_prefixes: ["6590"]           # 不进入表格与回归的单元代码前缀（兵团城市）
   min_group_n: 10               # 分组斜率与固定效应模型中，每组至少的单元数；更少的组合并或剔除
+  min_fiscal_years: 2           # 主分析期内收入与支出同时有值的年份少于此数的单元，财政变量记为缺失
   fig_out_dir: 数据/结果/图表     # 脚本生成的图先写到这里，研究者挑选后再复制到 图表/（避免被误判为手动修改）
   winsor_pct: 0.01              # 连续变量双侧缩尾比例
 

@@ -409,6 +409,12 @@ def assertions(base: Path, ud: Path, units: pd.DataFrame, cfg: dict) -> dict:
                                                          "图表/图2_财政人口双变量地图.png", "图表/图S1_中心建成区质控.png",
                                                          "图表/图6_回归系数图.png")),
     }
+    # 可选数据缺失时模型应跳过并写明原因：去掉公园矢量与土地债务变量后重新估计
+    thin = sample.drop(columns=[c for c in sample.columns if c.startswith(("park_", "ln_park_pc", "ln_land", "ln_lgfv", "ln_special"))])
+    _, ov, _ = m05.fit_all(thin, cfg["analysis"]["cluster_col"], 10)
+    st = dict(zip(ov["模型"], ov["状态"]))
+    checks["可选数据缺失时模型跳过并写明原因"] = all(
+        st[k].startswith("跳过") for k in st if k.startswith(("M7d", "M7e", "M16"))) and len(st) == len(m05.MODELS)
     # 函数级检查：代码对照表中“部分划出、原代码保留”（A→A 0.8、A→B 0.2，2012 年）与
     # 同一旧代码的第二次变更（A→C，2018 年）同时存在时，2010 年数据应得到 B 200、C 800，总量守恒
     m02 = load_module("m02", "02_build_fiscal_census.py")

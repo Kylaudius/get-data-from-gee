@@ -71,6 +71,12 @@ CODEBOOK = [
     ("tax_rebate_share", "税收返还占比", "tax rebate share of transfers",
      "税收返还 / 转移支付合计；合计缺失时分母取 税收返还 + 一般性转移支付 + 专项转移支付", "比值"),
     ("fss_2010", "财政自给率（2010 期）", "fiscal self-sufficiency, 2009–2011", "2009–2011 年均收入 / 年均支出", "比值"),
+    ("net_inflow_pc_2010", "人均净流入（2010 期）", "net fiscal inflow per capita, 2009–2011",
+     "(2009–2011 年均支出 − 年均收入) / P2010；与 transfer_obs_pc_2010 对照，检验净缺口代理", "元/人"),
+    ("transfer_obs_pc_2010", "人均转移支付（2010 期观测值）", "observed transfers per capita, 2009–2011",
+     "2009–2011 年有数年份的转移支付合计均值 / P2010；通常只有 2009 年《全国地市县财政统计资料》一年", "元/人"),
+    ("specific_share_2010", "专项转移支付占比（2010 期）", "specific-purpose share of transfers, 2009–2011",
+     "专项转移支付 / (一般性转移支付 + 专项转移支付)，2010 期", "比值"),
     ("gap_ratio_2000", "转移支付依赖度（2000 期）", "transfer dependence ratio, 1999–2001",
      "(1999–2001 年均支出 − 年均收入) / 年均支出", "比值"),
     ("transfer_pc_2000_k", "人均转移支付（2000 期，预先确定）", "predetermined transfers per capita, 1999–2001",
@@ -275,9 +281,9 @@ CODEBOOK = [
 ] + [
     # ---- 住建部城市与县城建设统计 ----
     ("park_count", "公园个数（住建部）", "number of parks (MOHURD)", "mohurd_stock_year 年鉴报告值", "个"),
-    ("park_area_pc_mohurd", "人均公园面积（住建部，常住分母）", "park area per core resident (MOHURD)",
-     "公园面积（公顷）× 10000 / core_pop", "m²/人"),
-    ("road_area_pc_mohurd", "人均道路面积（住建部，常住分母）", "road area per core resident (MOHURD)",
+    ("park_area_pc_mohurd", "人均公园面积（住建部，中心人口分母）", "park area per core resident (MOHURD)",
+     "公园面积（公顷）× 10000 / core_pop；县的 core_pop 主口径取自住建部县城人口加暂住人口，与年鉴分母同源，core_pop_source 设为 ghs 时改用普查重标定人口", "m²/人"),
+    ("road_area_pc_mohurd", "人均道路面积（住建部，中心人口分母）", "road area per core resident (MOHURD)",
      "道路面积（万 m²）× 10000 / core_pop", "m²/人"),
     ("park_green_pc_m2", "人均公园绿地面积（住建部报告值）", "park green space per capita as reported",
      "年鉴报告值，分母为城区（县城）人口加暂住人口", "m²/人"),
@@ -365,6 +371,7 @@ TYPE_ZH = {"city_proper": "市辖区", "county_city": "县级市", "county": "�
 
 
 def assign_groups(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+    df = df.copy()
     a = cfg["analysis"]
     std = read_table(resolve(a["city_size_file"]))
     std["min_urban_pop_10k"] = pd.to_numeric(std["min_urban_pop_10k"])
@@ -392,7 +399,7 @@ def assign_groups(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
         if wrong.any():
             LOG.warning(f"{int(wrong.sum())} 个城市的城区人口达到特大标准但不在七普名单中，按 Ⅰ型大城市处理：{df.loc[wrong, 'unit_id'].tolist()}")
             df.loc[wrong, "city_size_class"] = "Ⅰ型大城市"
-        df = df.drop(columns="mega_class")
+        df = df.drop(columns="mega_class").copy()
 
     g = pd.Series("县", index=df.index)
     g[df["unit_type"] == "county_city"] = "县级市"
@@ -494,7 +501,13 @@ def compute(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     new["transfer_obs_pc"] = safe_div(tr_tot, p10)
     new["specific_share"] = safe_div(tr_s, tr_g + tr_s)
     new["tax_rebate_share"] = safe_div(tr_r, tr_tot)
-    new["fss_2010"] = safe_div(col(df, "gen_budget_revenue_y2010"), col(df, "gen_budget_expenditure_y2010"))
+    rev10, exp10 = col(df, "gen_budget_revenue_y2010"), col(df, "gen_budget_expenditure_y2010")
+    new["fss_2010"] = safe_div(rev10, exp10)
+    new["net_inflow_pc_2010"] = safe_div(exp10 - rev10, p10)
+    g10, s10 = col(df, "transfer_general_y2010"), col(df, "transfer_specific_y2010")
+    tot10 = col(df, "transfer_total_y2010").fillna(g10 + s10 + col(df, "tax_rebate_y2010"))
+    new["transfer_obs_pc_2010"] = safe_div(tot10, p10)
+    new["specific_share_2010"] = safe_div(s10, g10 + s10)
     rev00, exp00 = col(df, "gen_budget_revenue_y2000"), col(df, "gen_budget_expenditure_y2000")
     new["gap_ratio_2000"] = safe_div(exp00 - rev00, exp00)
     obs00 = col(df, "transfer_total_y2000")
@@ -672,7 +685,7 @@ def compute(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
         if f"c_n_poi_{k}" in df:
             new[f"{k}_per_10k"] = safe_div(col(df, f"c_n_poi_{k}"), core_pop) * 1e4
 
-    # 3l 住建部城市与县城建设统计（人均一律用 core_pop 重算）
+    # 3l 住建部城市与县城建设统计（人均一律用 core_pop 重算；县的主口径 core_pop 本身来自住建部县城人口）
     new["park_count"] = col(df, "mohurd_park_count")
     new["park_area_pc_mohurd"] = safe_div(col(df, "mohurd_park_area_ha") * 1e4, core_pop)
     new["road_area_pc_mohurd"] = safe_div(col(df, "mohurd_road_area_10k_m2") * 1e4, core_pop)
@@ -815,6 +828,7 @@ def load_all(cfg) -> pd.DataFrame:
     mo = load_mohurd(cfg, c2u)
     if mo is not None:
         df = df.merge(mo, on="unit_id", how="left")
+    df = df.copy()   # 多次合并后整理内存，避免逐列新增时的 PerformanceWarning
 
     # 官方中心人口：市辖区与县级市用七普城区人口（缺失时用住建部城区人口），县用住建部县城人口 + 暂住人口
     t = df["unit_type"]

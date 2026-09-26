@@ -52,6 +52,8 @@ Han, L., & Kung, J. K.-S. (2015). Fiscal incentives and policy choices of local 
 
 Han, L., & Lu, M. (2017). Housing prices and investment: An assessment of China's inland-favoring land supply policies. *Journal of the Asia Pacific Economy*, *22*(1), 106–121. https://doi.org/10.1080/13547860.2016.1261452
 
+Hansen, M. C., Potapov, P. V., Moore, R., Hancher, M., Turubanova, S. A., Tyukavina, A., Thau, D., Stehman, S. V., Goetz, S. J., Loveland, T. R., Kommareddy, A., Egorov, A., Chini, L., Justice, C. O., & Townshend, J. R. G. (2013). High-resolution global maps of 21st-century forest cover change. *Science*, *342*(6160), 850–853. https://doi.org/10.1126/science.1244693
+
 He, J. (2024). The price of losing autonomy: Assessing the economic impact of county-to-district mergers in China. *Urban Affairs Review*, *60*(6), 1839–1870. https://doi.org/10.1177/10780874241242696
 
 He, S. (2007). State-sponsored gentrification under market transition: The case of Shanghai. *Urban Affairs Review*, *43*(2), 171–198. https://doi.org/10.1177/1078087407305175
@@ -79,6 +81,8 @@ Huang, K., & You, Y. (2025). Evaluating the impact of the fourth round of China'
 Jin, X., Long, Y., Sun, W., Lu, Y., Yang, X., & Tang, J. (2017). Evaluating cities' vitality and identifying ghost cities in China with emerging geographical data. *Cities*, *63*, 98–109. https://doi.org/10.1016/j.cities.2017.01.002
 
 Jin, X., Sun, B., & Du, H. (2026). County-level assessment of coordinated relationship between land and population in urban China. *Ecological Indicators*, *186*, 114907. https://doi.org/10.1016/j.ecolind.2026.114907
+
+Kajita, S. (2001). Public investment as a social policy in remote rural areas in Japan. *Geographical Review of Japan, Series B*, *74*(2), 147–158. https://doi.org/10.4157/grj1984b.74.147
 
 Keele, L. J., & Titiunik, R. (2015). Geographic boundaries as regression discontinuities. *Political Analysis*, *23*(1), 127–155. https://doi.org/10.1093/pan/mpu014
 
@@ -126,6 +130,10 @@ Mennis, J. (2003). Generating surface models of population using dasymetric mapp
 
 Moss, T. (2008). ‘Cold spots’ of urban infrastructure: ‘Shrinking’ processes in Eastern Germany and the modern infrastructural ideal. *International Journal of Urban and Regional Research*, *32*(2), 436–451. https://doi.org/10.1111/j.1468-2427.2008.00790.x
 
+Musha, T. (2021). How can cities be compacted? Logic and reality of the location normalization plan. *E-journal GEO*, *16*(1), 57–69. https://doi.org/10.4157/ejgeo.16.57
+
+Nishino, T. (2015). Discussion of structure and content of early adopting municipalities' public facility reorganization plans. *Journal of Architecture and Planning (Transactions of AIJ)*, *80*(714), 1775–1785. https://doi.org/10.3130/aija.80.1775
+
 Park, A., Wang, S., & Wu, G. (2002). Regional poverty targeting in China. *Journal of Public Economics*, *86*(1), 123–153. https://doi.org/10.1016/s0047-2727(01)00108-6
 
 Pesaresi, M., Schiavina, M., Politis, P., Freire, S., Goch, K., Uhl, J., Carioli, A., Corbane, C., Dijkstra, L., Florio, P., Friedrich, H. K., Gao, J., Leyk, S., Lu, L., Maffenini, L., Mari-Rivero, I., Melchiorri, M., Syrris, V., Van Den Hoek, J., & Kemper, T. (2024). Advances on the Global Human Settlement Layer by joint assessment of Earth Observation and population survey data. *International Journal of Digital Earth*, *17*(1). https://doi.org/10.1080/17538947.2024.2390454
@@ -163,6 +171,8 @@ Wu, S., Chen, B., Webster, C., Xu, B., & Gong, P. (2023). Improved human greensp
 Wu, W., Ma, J., Banzhaf, E., Meadows, M. E., Yu, Z., Guo, F., Sengupta, D., Cai, X.-X., & Zhao, B. (2023). A first Chinese building height estimate at 10 m resolution (CNBH-10 m) using multi-source earth observations and machine learning. *Remote Sensing of Environment*, *291*, 113578. https://doi.org/10.1016/j.rse.2023.113578
 
 Xiao, Y., Li, Z., & Webster, C. (2016). Estimating the mediating effect of privately-supplied green space on the relationship between urban public green space and property value: Evidence from Shanghai, China. *Land Use Policy*, *54*, 439–447. https://doi.org/10.1016/j.landusepol.2016.03.001
+
+Yang, J., & Huang, X. (2021). The 30 m annual land cover dataset and its dynamics in China from 1990 to 2019. *Earth System Science Data*, *13*(8), 3907–3925. https://doi.org/10.5194/essd-13-3907-2021
 
 Yang, Z., & Dunford, M. (2018). City shrinkage in China: Scalar processes of urban and hukou population losses. *Regional Studies*, *52*(8), 1111–1121. https://doi.org/10.1080/00343404.2017.1335865
 

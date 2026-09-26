@@ -1,2 +1,2 @@
-﻿adcode,name,year,gen_budget_revenue,gen_budget_expenditure,tax_revenue,pop_hukou_yearend,gdp,source,note
-XXXXXX,示例：某县级市,2019,,,,,,中国县域统计年鉴2020（县市卷）页码,单位：财政与GDP为万元，户籍人口为万人
+﻿adcode,name,year,gen_budget_revenue,gen_budget_expenditure,tax_revenue,tax_rebate,transfer_general,transfer_specific,transfer_total,fund_budget_revenue,land_conveyance_revenue,exp_education,exp_health,exp_community,exp_personnel,exp_general_public,students_primary,students_secondary,teachers_fulltime,hospital_beds,welfare_beds,pop_hukou_yearend,gdp,source,note
+XXXXXX,示例：某县级市,2019,,,,,,,,,,,,,,,,,,,,,,中国县域统计年鉴2020（县市卷）页码,金额单位与 config.yaml 的 money_unit_in_raw 一致（通常为万元）；户籍人口为万人；在校生、教师为人，床位为张。税收返还、一般性转移支付、专项转移支付与转移支付合计取 2009 年《全国地市县财政统计资料》或试点省决算公开，年鉴没有的留空。教育、卫生健康、城乡社区、一般公共服务为功能分类支出，工资福利为经济分类支出，取决算公开。小学、普通中学在校生，医疗卫生机构床位与社会福利收养性单位床位取年鉴社会事业表；专任教师年鉴没有时留空。重庆等在 district_level_fiscal_prefs 中列出的城市，各区也按区代码逐行录入本表

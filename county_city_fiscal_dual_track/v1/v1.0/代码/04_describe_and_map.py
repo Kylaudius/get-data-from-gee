@@ -34,6 +34,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 from matplotlib import font_manager  # noqa: E402
+from matplotlib.ticker import FuncFormatter, NullFormatter  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import atomic_write_csv, atomic_write_text, get_logger, load_config, read_table, resolve  # noqa: E402
@@ -60,6 +61,13 @@ def set_cjk_font():
             LOG.info(f"图表字体：{w}")
             return
     LOG.warning("没有找到中文字体，图中中文可能显示为方块。")
+
+
+def plain_log_y(ax):
+    """对数轴刻度写成 0.1、1、10，而不是 10 的幂（部分中文字体缺少上标负号，幂次写法会显示成方块）。"""
+    ax.set_yscale("log")
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
+    ax.yaxis.set_minor_formatter(NullFormatter())
 
 
 def groups_in(df):
@@ -275,7 +283,7 @@ def fig_scatter(df, fig_dir):
         s = d[d["group5"] == g]
         size = 5 + 60 * np.sqrt(s["pop_resident_2020"].fillna(0) / pmax)
         ax.scatter(s["net_inflow_pc_k"], s["tree_pc_core"], s=size, alpha=0.6, color=GROUP_COLORS[g], label=g, linewidths=0)
-    ax.set_yscale("log")
+    plain_log_y(ax)
     ax.set_xlabel("人均净流入（千元，2010 年常住人口为分母）")
     ax.set_ylabel("中心建成区人均树木覆盖面积（m²，对数轴）")
     ax.legend(frameon=False, fontsize=9)
@@ -307,7 +315,7 @@ def boxplot_panels(df, panels, title, stem, fig_dir, fig_label):
         ax.set_xticks(range(len(groups)), groups, rotation=20, fontsize=8)
         ax.set_title(lab, fontsize=10)
         if logy:
-            ax.set_yscale("log")
+            plain_log_y(ax)
     for ax in list(axes.flat)[n:]:
         ax.set_visible(False)
     fig.suptitle(title)

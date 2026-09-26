@@ -1,6 +1,6 @@
 # 附录A 补充：已检索但未收录的候选文献
 
-下列条目由文献代理检索到，但未通过核验或未被报告引用，原因附在每条之后。
+下列条目由文献代理检索到，但未通过核验或未被报告引用，原因附在每条之后。已收入正文文献表的条目不再列出。
 
 ## 财政体制与县级转移支付
 
@@ -33,7 +33,7 @@
 - [储备，已核验] Wu, J., He, Q., Chen, Y. et al. (2018) 'Dismantling the fence for social justice?...' EPB 47(4):626-644, DOI 10.1177/2399808318793139——北京模拟开放封闭小区后绿地可达性不平等反而加剧。
 - [储备，已核验] Zhang, F. & Wu, F. (2024) 'Green state entrepreneurialism: Building the park city in Chengdu, China', Transactions in Planning and Urban Research 3(3):183-201, DOI 10.1177/27541223241253231——成都公园城市以土地整理与城投融资推动，属国家主导而非新自由主义绿色增长机器。
 - [储备，已核验] Feng, Y., Wu, F. & Zhang, F. (2021) 'Changing roles of the state in the financialization of urban development through chengtou in China', Regional Studies 56(8):1259-1270, DOI 10.1080/00343404.2021.1900558——金融化进一步分化区域融资模式，浙江县镇政府更善于利用城投。
-- [储备，已核验] He, S. & Cai, R. (2023) Urban Studies 61(14):2756-2777, DOI 10.1177/00420980231204714——教育型封闭小区将教育由公共品转为可资本化的俱乐部品；He (2010) Population, Space and Place 16(5):345-361, DOI 10.1002/psp.548（上海新建型绅士化，使用1990-2000普查人口变化）；He (2012) EPA 44(12):2817-2833, DOI 10.1068/a44254；He & Qian (2023) Antipode 55(3):853-876, DOI 10.1111/anti.12919。
+- [储备，已核验] He, S. & Cai, R. (2023) Urban Studies 61(14):2756-2777, DOI 10.1177/00420980231204714——教育型封闭小区将教育由公共品转为可资本化的俱乐部品；He (2010) Population, Space and Place 16(5):345-361, DOI 10.1002/psp.548（上海新建型绅士化，使用1990-2000普查人口变化）；He (2012) EPA 44(12):2817-2833, DOI 10.1068/a44254；He & Qian (2023) Antipode 55(3):853-876, DOI 10.1111/anti.12919。（其中 10.1177/00420980231204714 已收入正文文献表）
 - [储备，已核验] Jim & Chen (2006) LUP 78(4):422-434, DOI 10.1016/j.landurbplan.2005.12.003（广州，绿景+7.1%）；Kong, Yin & Nakagoshi (2007) LUP 79(3-4):240-252, DOI 10.1016/j.landurbplan.2006.02.013（济南，景观指数+特征价格）；Chen, Xu, Byrne et al. (2021) UFUG 59:127009, DOI 10.1016/j.ufug.2021.127009（杭州，大型绿地更易引发绅士化）；Anguelovski et al. (2022) Nature Communications 13, DOI 10.1038/s41467-022-31572-1（28城中17城绿化与绅士化正相关）。
 
 ## 遥感测度与数据质量
@@ -58,7 +58,6 @@
 
 - [元数据已核验，但缺依据文本，未收入] Bo, S. (2020). Centralization and regional development: Evidence from a political hierarchy reform to create cities in China. Journal of Urban Economics 115:103182, doi:10.1016/j.jue.2019.06.005。Scite 无摘要，也未找到实质性引用片段；主题是设市层级改革，与撤县设区不同。
 - [元数据已核验，但缺依据文本，未收入] Conley, T. G. (1999). GMM estimation with cross sectional dependence. Journal of Econometrics 92(1):1-45, doi:10.1016/s0304-4076(98)00084-0。Scite 未返回摘要或引用片段；拟用作空间 HAC 标准误的依据，需补核。
-- [未单独按 DOI 核验] Stevens et al. (2015) WorldPop 随机森林 dasymetric 方法, PLoS ONE, doi:10.1371/journal.pone.0107042。只在 Flasse et al. 2021 的 Smart Citation 中出现。
 - [未单独按 DOI 核验] Borusyak, Jaravel & Spiess (2024). Revisiting event-study designs, Review of Economic Studies, doi:10.1093/restud/rdae007。只在他文引用中出现。
 - [未检索] Roth, Sant'Anna, Bilinski & Poe (2023) DiD 综述（Journal of Econometrics）；Dell (2010) Econometrica 秘鲁 mita 地理断点；Eicher & Brewer (2001) dasymetric 比较。均未经 Scite 核验。
 - [已核验，为控制篇幅未收入，可按需增补] Calonico, Cattaneo & Titiunik (2014) Econometrica 82(6):2295-2326, doi:10.3982/ecta11757（RD 稳健偏差校正置信区间，有摘要）；Borusyak, Hull & Jaravel (2022) Review of Economic Studies 89(1):181-213, doi:10.1093/restud/rdab030（shock 外生的 shift-share，有摘要）；Ain, Q. (2024) Economics of Transition and Institutional Change 33(2):487-516, doi:10.1111/ecot.12437（县级交错 DiD：PMC 提高资本性支出、压缩社会保障支出，有摘要）；Huang, Gao & Xu (2017) China Economic Review 45:45-61, doi:10.1016/j.chieco.2017.06.001（PMC 对义务教育生均支出，有摘要）；Zhen, Yu & Chen (2023) Land 12(6):1149, doi:10.3390/land12061149（撤县设区对住宅用地供给的多期 DiD）；Zhang, J. (2016) Modern Economy 7(11):1223-1231, doi:10.4236/me.2016.711118（2011 年 38 个县退出贫困县名单的 DiD，财政收支下降；期刊质量较低）；Jin (2022) Sustainability 14(11):6406, doi:10.3390/su14116406（撤县设区 PSM-DID）。

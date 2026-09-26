@@ -1,0 +1,2 @@
+﻿adcode,name,year,land_conv_revenue,land_conv_area_ha,n_parcels,source,note
+XXXXXX,示例：某县,2018,,,,中国土地市场网 供地结果公告，按县级行政区与合同签订年份汇总,只计出让（招拍挂与协议），不含划拨与租赁。价款单位与财政表相同（万元），面积为公顷，n_parcels 为宗数。市本级（不分区）的记录填地级代码 xxxx00，归入市辖区单元

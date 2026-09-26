@@ -593,7 +593,7 @@ def main():
     opt = build_optional(cfg, c2u, cw)
     units = c2u.drop_duplicates("unit_id")[["unit_id", "unit_type", "prov_code", "pref_code"]]
     out = (units.merge(census, on="unit_id", how="left").merge(fiscal, on="unit_id", how="left")
-           .merge(opt, on="unit_id", how="left"))
+           .merge(opt, on="unit_id", how="left")).copy()   # copy() 整理内存，避免逐列新增时的 PerformanceWarning
     if fcov is not None:
         out["fiscal_cov_main"] = out["unit_id"].map(fcov)
         part = out[out["fiscal_cov_main"] < 1]

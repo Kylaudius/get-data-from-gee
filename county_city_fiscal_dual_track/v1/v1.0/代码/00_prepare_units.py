@@ -36,7 +36,6 @@
 """
 from __future__ import annotations
 
-import re
 import sys
 import zipfile
 from pathlib import Path
@@ -93,7 +92,7 @@ def load_converted_years(cfg: dict, district_codes: set, log) -> dict:
         d["adcode"] = d["adcode"].map(norm_adcode)
         d["convert_year"] = pd.to_numeric(d["convert_year"], errors="coerce") if "convert_year" in d else np.nan
         d = d.dropna(subset=["adcode", "convert_year"])
-        src = f"撤县设区名单 {resolve(path).name}"
+        src = f"撤县设区名单 {resolve(path).name} "
         pairs = d[["adcode", "convert_year"]]
     else:
         cw_path = resolve(cfg["fiscal_census"]["crosswalk_file"])
@@ -108,7 +107,7 @@ def load_converted_years(cfg: dict, district_codes: set, log) -> dict:
         cw["convert_year"] = pd.to_numeric(cw["change_year"], errors="coerce")
         hit = cw["change_type"].astype("string").str.contains(CONVERT_PATTERN, regex=True, na=False)
         pairs = cw.loc[hit, ["adcode", "convert_year"]].dropna()
-        src = f"代码对照表 {cw_path.name} 的 change_type"
+        src = f"代码对照表 {cw_path.name} 的 change_type "
     n_all = len(pairs)
     pairs = pairs[pairs["convert_year"] > since]
     not_district = sorted(set(pairs["adcode"]) - district_codes)

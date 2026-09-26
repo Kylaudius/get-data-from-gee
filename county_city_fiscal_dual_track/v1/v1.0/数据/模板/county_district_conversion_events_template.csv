@@ -1,0 +1,2 @@
+﻿adcode,name,pref_code,apply_date,approval_date,from_type,new_code,source,note
+XXXXXX,示例：某县,ZZZZ00,,2016-06-08,县,YYYYYY,国务院批复文件；民政部行政区划变更公告,adcode 为设区前的县级代码，new_code 为设区后的代码；日期写 YYYY-MM-DD，申报日期查不到可留空。v1.1 准实验使用

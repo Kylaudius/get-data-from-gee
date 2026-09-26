@@ -1,0 +1,2 @@
+﻿adcode,name,zone_name,level,approved_area_km2,approval_year,source,note
+XXXXXX,示例：某县,示例：某某经济开发区,省级,,,中国开发区审核公告目录（2018 年版）,level 填“国家级”或“省级”。目录中的核准面积单位为公顷，除以 100 后填入 approved_area_km2。adcode 为开发区所在县级行政区

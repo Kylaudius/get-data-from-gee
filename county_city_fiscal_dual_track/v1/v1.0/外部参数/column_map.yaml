@@ -1,0 +1,152 @@
+# =====================================================================
+# column_map.yaml  数据库导出表格转为 数据/模板 格式的映射表（UTF-8）
+# 由 代码/tools/convert_yearbook_excel.py 读取。每个 job 描述一类导出文件怎样转换。
+#
+# 用法
+#   1. 从 EPS 中国县市数据库、CNKI 中国经济社会大数据研究平台（年鉴库）等导出 xlsx 或 csv，
+#      放到 数据/原始/导出/ 下的子文件夹中。能否批量导出请先向港大图书馆确认订阅范围。
+#   2. 先看表头。运行下面的命令，终端会列出前几行原文和识别出的表头，
+#      以及每个表头按当前映射对应到哪一个模板列：
+#        python tools/convert_yearbook_excel.py --inspect 数据/原始/导出/某文件.xlsx --job eps_county_fiscal
+#   3. 按实际表头修改下面的 pattern，把 enabled 改为 true，然后运行：
+#        python tools/convert_yearbook_excel.py
+#   4. 运行 python tools/validate_raw_data.py 体检转换结果。
+#
+# 下面各 job 中的源列名都是示例（按年鉴常见指标名写的），不同数据库、不同年份的表头并不一样，
+# 使用前必须按自己的导出文件核对修改。
+#
+# 写法说明
+#   job           job 的名称，--jobs 与 --job 用它指定
+#   template      模板名，对应 数据/模板/<template>_template.csv；输出列与列序以模板为准
+#   input         输入文件，可用通配符（* 表示任意字符），也可写成列表
+#   output        输出文件。输出已存在且不是本工具上次写出的（例如手工录入过），
+#                 工具不会覆盖，改写到同名加 _转换结果 的文件并提示
+#   sheet         工作表序号（从 0 开始）或名称
+#   header_row    表头所在的 Excel 行号（从 1 开始）。导出表上方常有一两行标题
+#   header_rows   表头占几行。上行是指标、下行是年份的多行表头（合并单元格）写 2，
+#                 两行会用竖线连成一个表头，例如 一般公共预算收入|2019
+#   code          代码列。column 为正则表达式 (regular expression)；代码统一规范为 6 位
+#                 没有代码列时，可按名称到 lookup_file 中查代码，只采用唯一匹配，
+#                 lookup_prov 可限定省份（两位代码）以减少重名；查不到或重名的行列入未匹配清单
+#   name          名称列（正则表达式）
+#   year          四种写法选一种
+#                   column: 年份列的正则（长表，一行一个地区一年）
+#                   from_header: 从表头提取年份的正则，括号内为年份（宽表，一列一年）
+#                   value: 固定年份（一个文件只有一年，例如普查）
+#                   from_filename: 从文件名提取年份的正则，括号内为年份
+#   columns       模板列名: {pattern: 源表头正则, unit: 源单位, target_unit: 模板单位, exclude: 排除的正则}
+#                 一个表头只对应第一个匹配到的模板列。
+#                 金额单位（元、千元、万元、百万元、亿元）的 target_unit 可省略，默认取 config.yaml 的
+#                 fiscal_census.money_unit_in_raw。其他单位须写 target_unit，可用的单位有
+#                 人、万人；户、万户；平方米、万平方米、公顷、平方公里、亩；米、公里；个、张；%、‰、小数。
+#                 也可以直接写 factor（乘数），此时不看 unit。
+#   fixed         给模板列填固定值，例如市辖区口径的 scope、住建部面板的 level
+#   source        写入模板 source 列的来源说明；不写时记为源文件名
+#   drop_province_rows  默认 true，剔除省级汇总行（代码为 xx0000，北京、天津、上海、重庆除外）
+# =====================================================================
+
+settings:
+  state_file: 数据/中间/convert/convert_state.json   # 已转换文件的记录，文件和映射都没变时跳过（断点续跑）
+  cache_dir: 数据/中间/convert/cache                  # 每个源文件的转换结果，最后按 output 合并
+
+jobs:
+  # ---------- 示例 1：EPS 中国县市数据库，县域财政（长表：一行一个县一年）----------
+  # 常见导出格式为 地区、地区代码、时间，再加若干指标列，指标名后带单位。列名为示例，请按实际导出核对。
+  - job: eps_county_fiscal
+    enabled: false                                   # 核对好映射后改为 true
+    template: fiscal_county
+    input: 数据/原始/导出/EPS县域财政/*.xlsx
+    output: 数据/原始/fiscal/fiscal_county.csv
+    sheet: 0
+    header_row: 1
+    header_rows: 1
+    code:
+      column: "^(地区代码|行政区划代码|代码)$"
+    name:
+      column: "^(地区|地区名称|县市名称)$"
+    year:
+      column: "^(时间|年份|年度)$"
+    columns:
+      gen_budget_revenue:     {pattern: "(地方)?(一般公共预算|财政一般预算)收入", unit: 万元}
+      gen_budget_expenditure: {pattern: "(地方)?(一般公共预算|财政一般预算)支出", unit: 万元}
+      tax_revenue:            {pattern: "各项税收|税收收入", unit: 万元, exclude: "占|比重"}
+      gdp:                    {pattern: "^地区生产总值", unit: 万元, exclude: "指数|人均|增长"}
+      pop_hukou_yearend:      {pattern: "年末(总|户籍)人口|户籍人口", unit: 万人, target_unit: 万人}
+      students_primary:       {pattern: "小学在校学生", unit: 人, target_unit: 人}
+      students_secondary:     {pattern: "(普通)?中学在校学生", unit: 人, target_unit: 人}
+      hospital_beds:          {pattern: "医疗卫生机构床位", unit: 张, target_unit: 张}
+      welfare_beds:           {pattern: "社会福利.*床位", unit: 张, target_unit: 张}
+    source: EPS 中国县市数据库导出（请填导出日期）
+    drop_province_rows: true
+
+  # ---------- 示例 2：CNKI 年鉴库，市辖区单一指标宽表（一列一年）----------
+  # 常见格式为 地区 | 2017年 | 2018年 | 2019年，年鉴表常没有代码列。此时按名称查代码，
+  # 查询表可用民政部公布的县级以上行政区划代码（含地级市名称），整理成 代码、名称 两列。
+  # 查不到或重名的行写入 数据/中间/convert/<job>_未匹配代码.csv，补进查询表后重跑。
+  - job: cnki_city_revenue_wide
+    enabled: false
+    template: fiscal_city_proper
+    input: 数据/原始/导出/城市年鉴/市辖区_一般公共预算收入*.xlsx
+    output: 数据/原始/fiscal/fiscal_city_proper.csv
+    header_row: 2
+    code:
+      column: "^(代码|地区代码)$"                      # 表中有代码列时用这一行
+      lookup_file: 数据/原始/crosswalk/xzqh_codes.csv  # 没有代码列时按名称查代码（示例路径）
+      lookup_code_col: 代码
+      lookup_name_col: 名称
+      # lookup_prov: "44"                              # 可选：只在这个省内查，减少重名
+    name:
+      column: "^(地区|城市)$"
+    year:
+      from_header: "((?:19|20)\\d{2})\\s*年?"
+    columns:
+      gen_budget_revenue: {pattern: "^(19|20)\\d{2}\\s*年?$", unit: 万元}
+    fixed:
+      scope: 市辖区
+    source: 中国城市统计年鉴（CNKI 年鉴库导出）
+
+  # ---------- 示例 3：七普分县资料，一个文件一年 ----------
+  - job: census2020_county
+    enabled: false
+    template: census_county
+    input: 数据/原始/导出/七普分县/*.xlsx
+    output: 数据/原始/census/census_2020_county.csv
+    header_row: 3
+    header_rows: 2
+    code:
+      column: "代码"
+    name:
+      column: "^地区|^县"
+    year:
+      value: 2020
+    columns:
+      pop_resident:  {pattern: "^(常住人口|总人口)", unit: 人, target_unit: 人}
+      households:    {pattern: "家庭户.*户数", unit: 户, target_unit: 户}
+      hh_pop:        {pattern: "家庭户.*人口", unit: 人, target_unit: 人}
+      collective_pop: {pattern: "集体户.*人口", unit: 人, target_unit: 人}
+      share_65plus:  {pattern: "65岁及以上.*(比重|%)", unit: "%", target_unit: 小数}
+    source: 中国人口普查分县资料 2020
+
+  # ---------- 示例 4：住建部《县城建设统计年鉴》，年份取自文件名 ----------
+  - job: mohurd_county_town
+    enabled: false
+    template: mohurd_panel
+    input: 数据/原始/导出/县城建设年鉴/县城*年*.xlsx
+    output: 数据/原始/mohurd/mohurd_panel.csv
+    header_row: 2
+    code:
+      column: "代码"
+    name:
+      column: "^(县名称|县城|地区)$"
+    year:
+      from_filename: "((?:19|20)\\d{2})"
+    columns:
+      park_green_area_ha:  {pattern: "公园绿地面积", unit: 公顷, target_unit: 公顷}
+      park_count:          {pattern: "公园个数", unit: 个, target_unit: 个}
+      road_area_10k_m2:    {pattern: "道路面积", unit: 万平方米, target_unit: 万平方米, exclude: "人均"}
+      pop_urban_10k:       {pattern: "县城人口", unit: 万人, target_unit: 万人}
+      pop_temp_10k:        {pattern: "暂住人口", unit: 万人, target_unit: 万人}
+      maint_fund_total:    {pattern: "维护建设资金.*(合计|收入)", unit: 万元}
+    fixed:
+      level: 县城
+    source: 中国县城建设统计年鉴
