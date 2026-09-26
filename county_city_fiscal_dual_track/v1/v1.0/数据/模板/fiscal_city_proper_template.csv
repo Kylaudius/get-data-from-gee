@@ -1,0 +1,2 @@
+﻿pref_code,name,year,scope,gen_budget_revenue,gen_budget_expenditure,tax_revenue,land_conveyance_revenue,pop_hukou_yearend,gdp,source,note
+ZZZZ00,示例：某地级市,2019,市辖区,,,,,,,中国城市统计年鉴2020 市辖区口径 页码,土地出让收入不在城市统计年鉴中，可留空

@@ -1,0 +1,2 @@
+﻿adcode,name,census_year,pop_resident,pop_urban,households,hh_pop,pop_hukou,pop_hukou_elsewhere,housing_area_pc,share_rent_public,share_rent_market,share_buy_new,share_buy_second,share_self_built,share_65plus,source,note
+XXXXXX,示例：某县,2020,,,,,,,,,,,,,,中国人口普查分县资料—2020 表号,人口单位为人；比例为0–1小数。pop_hukou 仅六普表1提供，七普用县域统计年鉴户籍人口；pop_hukou_elsewhere 为七普表3“户口登记地在外乡镇街道的人口”；住房类变量取七普表8或省级普查年鉴

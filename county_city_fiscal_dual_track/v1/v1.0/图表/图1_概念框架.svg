@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800" font-family="PingFang SC, Heiti SC, Noto Sans CJK SC, WenQuanYi Zen Hei, sans-serif">
+  <title>图1 概念框架：县城与大城市的财政分轨</title>
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#555"/>
+    </marker>
+    <style>
+      .h { font-size: 20px; font-weight: 700; fill: #222; }
+      .t { font-size: 15px; fill: #222; }
+      .s { font-size: 12.5px; fill: #555; }
+      .box { stroke-width: 1.4; rx: 8; }
+      .ln { stroke: #555; stroke-width: 1.4; fill: none; marker-end: url(#ar); }
+      .dash { stroke: #999; stroke-width: 1.2; fill: none; stroke-dasharray: 5 4; marker-end: url(#ar); }
+    </style>
+  </defs>
+  <rect x="0" y="0" width="1200" height="800" fill="#ffffff"/>
+
+  <!-- 标题 -->
+  <text x="600" y="38" text-anchor="middle" class="h">县城与大城市的财政分轨（fiscal dual track）</text>
+  <text x="600" y="62" text-anchor="middle" class="s">财政来源 × 国家中心性 × 人口流动 → 公共空间供给、使用与资本化</text>
+
+  <!-- 左：县城 -->
+  <rect x="40" y="90" width="500" height="36" fill="#dbe8f4" stroke="#2166ac" class="box"/>
+  <text x="290" y="114" text-anchor="middle" class="t" font-weight="700">县、县级市的县城（county seat）</text>
+
+  <rect x="40" y="145" width="500" height="70" fill="#f3f8fc" stroke="#2166ac" class="box"/>
+  <text x="60" y="172" class="t">财政来源：上级转移支付（intergovernmental transfers）</text>
+  <text x="60" y="197" class="s">＋ 城投平台债务（LGFV debt）；本级收入占比低，财政自给率低</text>
+
+  <rect x="40" y="240" width="500" height="70" fill="#f3f8fc" stroke="#2166ac" class="box"/>
+  <text x="60" y="267" class="t">供给：公园、绿道、道路等公共空间由项目资金建设</text>
+  <text x="60" y="292" class="s">分子：存量增加（遥感：绿地、建成面积、建筑体量）</text>
+
+  <rect x="40" y="335" width="500" height="70" fill="#f3f8fc" stroke="#2166ac" class="box"/>
+  <text x="60" y="362" class="t">人口：常住人口流出，常住 &lt; 户籍（population shrinkage）</text>
+  <text x="60" y="387" class="s">分母：缩小。人均供给上升一部分来自分母下降</text>
+
+  <rect x="40" y="430" width="500" height="70" fill="#eaf1f8" stroke="#2166ac" class="box"/>
+  <text x="60" y="457" class="t">结果：人均公共空间高，使用强度低，维护负担重</text>
+  <text x="60" y="482" class="s">“绿而不贵”：绿地较少被房价资本化（weak capitalization）</text>
+
+  <!-- 右：大城市 -->
+  <rect x="660" y="90" width="500" height="36" fill="#f6ddd8" stroke="#b2182b" class="box"/>
+  <text x="910" y="114" text-anchor="middle" class="t" font-weight="700">超大、特大与大城市的市辖区（city proper）</text>
+
+  <rect x="660" y="145" width="500" height="70" fill="#fdf4f2" stroke="#b2182b" class="box"/>
+  <text x="680" y="172" class="t">财政来源：本级税收、土地出让与土地金融化</text>
+  <text x="680" y="197" class="s">国家企业家主义（state entrepreneurialism）：国家主导，借用市场工具</text>
+
+  <rect x="660" y="240" width="500" height="70" fill="#fdf4f2" stroke="#b2182b" class="box"/>
+  <text x="680" y="267" class="t">供给：公共公园 ＋ 商品房小区内的“俱乐部绿地”（club green）</text>
+  <text x="680" y="292" class="s">一部分公共空间由市场供给并计入房价</text>
+
+  <rect x="660" y="335" width="500" height="70" fill="#fdf4f2" stroke="#b2182b" class="box"/>
+  <text x="680" y="362" class="t">人口：持续流入，常住 &gt; 户籍（in-migration）</text>
+  <text x="680" y="387" class="s">分母：扩大。公共品按户籍配置，被非户籍人口稀释</text>
+
+  <rect x="660" y="430" width="500" height="70" fill="#fbeae6" stroke="#b2182b" class="box"/>
+  <text x="680" y="457" class="t">结果：人均公共空间低，住房压力大，使用强度高</text>
+  <text x="680" y="482" class="s">绿地被资本化，可能引发绿色绅士化（green gentrification）</text>
+
+  <!-- 纵向箭头 -->
+  <path d="M290,215 L290,238" class="ln"/>
+  <path d="M290,310 L290,333" class="ln"/>
+  <path d="M290,405 L290,428" class="ln"/>
+  <path d="M910,215 L910,238" class="ln"/>
+  <path d="M910,310 L910,333" class="ln"/>
+  <path d="M910,405 L910,428" class="ln"/>
+
+  <!-- 中间：人口流动 -->
+  <path d="M542,370 L656,370" class="ln"/>
+  <text x="600" y="358" text-anchor="middle" class="s">人口流动</text>
+  <text x="600" y="392" text-anchor="middle" class="s">（户籍留在县）</text>
+  <path d="M656,180 C600,140 600,140 544,180" class="dash"/>
+  <text x="600" y="136" text-anchor="middle" class="s">经中央、省两级再分配</text>
+
+  <!-- 下：测度 -->
+  <rect x="40" y="536" width="1120" height="120" fill="#f7f7f7" stroke="#777" class="box"/>
+  <text x="60" y="568" class="t" font-weight="700">测度（全国约 2 200 个分析单元，2010 与 2020 两期）</text>
+  <text x="60" y="596" class="t">财政决算：财政自给率、转移支付依赖度、人均支出（常住 / 户籍两种分母）</text>
+  <text x="60" y="621" class="t">人口普查：常住、户籍、城镇人口，2010–2020 变化，住房来源与人均住房面积</text>
+  <text x="60" y="644" class="t">遥感（GEE）：GHSL 建成与体量、WorldCover 绿地、Sentinel-2 NDVI、VIIRS 夜光、公园与绿道矢量</text>
+  <path d="M290,502 L290,538" class="dash"/>
+  <path d="M910,502 L910,538" class="dash"/>
+
+  <!-- 最下：识别 -->
+  <rect x="40" y="672" width="1120" height="100" fill="#fffbea" stroke="#b8860b" class="box"/>
+  <text x="60" y="701" class="t" font-weight="700">识别：让转移支付依赖度发生外生变化</text>
+  <text x="60" y="731" class="t">撤县设区（县 → 市辖区，财政体制切换）；贫困县认定与退出；省直管县财政改革</text>
+  <text x="60" y="755" class="s">交错双重差分与事件研究（Callaway–Sant'Anna 等稳健估计量）；长差分 2010–2020；分子与分母分解</text>
+</svg>

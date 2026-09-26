@@ -1,0 +1,8 @@
+﻿class_code,class_zh,class_en,min_urban_pop_10k,max_urban_pop_10k,source
+1,超大城市,megacity,1000,,国发〔2014〕51号《关于调整城市规模划分标准的通知》；以上包括本数，以下不包括本数
+2,特大城市,very large city,500,1000,同上
+3,Ⅰ型大城市,large city type I,300,500,同上
+4,Ⅱ型大城市,large city type II,100,300,同上
+5,中等城市,medium-sized city,50,100,同上
+6,Ⅰ型小城市,small city type I,20,50,同上
+7,Ⅱ型小城市,small city type II,0,20,同上

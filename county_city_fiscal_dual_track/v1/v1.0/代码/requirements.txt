@@ -1,0 +1,14 @@
+# requirements.txt  本项目依赖（在已激活的 fiscal 环境中运行 pip install -r requirements.txt）
+# 版本下限为 2026-09 测试通过的组合；上限未锁定，以便 Mac 上安装最新兼容版本。
+pandas>=2.2
+numpy>=1.26
+geopandas>=1.0
+shapely>=2.0
+pyogrio>=0.9
+statsmodels>=0.14
+patsy>=0.5
+matplotlib>=3.8
+earthengine-api>=1.0
+pyyaml>=6.0
+openpyxl>=3.1
+scipy>=1.11
