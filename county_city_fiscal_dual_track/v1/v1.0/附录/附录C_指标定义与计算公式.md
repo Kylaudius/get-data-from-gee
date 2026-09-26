@@ -6,8 +6,8 @@
 
 | 变量名 | 中文名 | 英文术语 | 公式 | 单位 |
 |---|---|---|---|---|
-| `fss` | 财政自给率（描述） | fiscal self-sufficiency ratio | 一般公共预算收入 / 一般公共预算支出，主分析期均值；只作描述，不进入回归 | 比值 |
-| `gap_ratio` | 转移支付依赖度（描述） | transfer dependence ratio | = 1 − fss，仅作描述 | 比值 |
+| `fss` | 财政自给率（描述） | fiscal self-sufficiency ratio | 一般公共预算收入 / 一般公共预算支出，主分析期均值；只作描述，不进入主回归 | 比值 |
+| `gap_ratio` | 转移支付依赖度（描述） | transfer dependence ratio | = 1 − fss；作描述，只在稳健性模型 R-a 中替代人均净流入 | 比值 |
 | `net_inflow_pc` | 人均净流入 | net fiscal inflow per capita | (一般公共预算支出 − 一般公共预算收入) / P2010。分母取 2010 年人口，不受此后人口变化影响；净缺口含转移支付、债务收入、调入资金与上年结转 | 元/人 |
 | `net_inflow_pc_k` | 人均净流入（千元） | net fiscal inflow per capita, thousand yuan | net_inflow_pc / 1000；回归的核心财政变量，缩尾后以线性形式进入模型 | 千元/人 |
 | `own_rev_pc` | 人均本级收入 | own-source revenue per capita | 一般公共预算收入 / P2010；回归中取对数 | 元/人 |
@@ -45,6 +45,7 @@
 | `admin_rank` | 行政等级 | administrative rank | 4 直辖市，3 副省级城市，2 其他省会城市，1 其他地级市（市辖区单元；外围市辖区取所属城市），0 县级市与县；来自 外部参数/admin_rank.csv | 序数 |
 | `pop_chg_1020` | 常住人口对数变化 2010–2020 | log change of resident population | ln(P2020 / P2010)，普查常住人口；任一期人口为 0 或缺失时不计算 | 对数差 |
 | `pop_chg_0010` | 常住人口对数变化 2000–2010 | log change of resident population | ln(P2010 / P2000) | 对数差 |
+| `pop_chg_9000` | 常住人口对数变化 1990–2000（可选） | log change of resident population, 1990–2000 | ln(P2000 / P1990)，P1990 取第四次人口普查分县资料（fiscal_census.census_files 的 1990 项）；只用于长差分的前趋势检验 | 对数差 |
 | `res_hukou_ratio` | 常住与户籍人口之比 | resident-to-registered ratio | P2020 / 户籍人口；小于 1 表示人口净流出 | 比值 |
 | `urb_rate_2020` | 城镇化率 2020 | urbanization rate | 城镇人口 / 常住人口 | 比值 |
 | `share_hukou_elsewhere` | 人户分离人口比例 2020 | share of residents registered elsewhere | 七普表3“户口登记地在外乡镇街道的人口” / 常住人口；含县内跨乡镇迁移，只作流动强度的近似 | 比值 |
@@ -59,15 +60,17 @@
 | `core_pop` | 中心建成区人口（主口径） | core population, main source | 按 analysis.core_pop_source 取 core_pop_official 或 core_pop_ghs，缺失时改用另一种，来源见 core_pop_src；低于 analysis.min_core_pop 记为缺失 | 人 |
 | `core_pop_src` | 中心建成区人口来源 | source of core population | official 或 ghs | 类别 |
 | `core_pop_ghs` | 中心建成区人口（GHS-POP 重标定） | core population, census-rescaled GHS-POP | GHS-POP 2020 中心建成区求和 × (P2020 / GHS-POP 单元求和)；普查缺失时用未重标定值。GHS-POP 按建筑体量分配人口，隐含各处入住率相同 | 人 |
-| `core_pop_official` | 中心建成区人口（官方统计） | core population, official statistics | 市辖区与县级市取七普城区常住人口（city_urban_pop_file）；县取住建部《县城建设统计年鉴》mohurd_stock_year 年县城人口加暂住人口；前者缺失时用住建部同口径数 | 人 |
+| `core_pop_official` | 中心建成区人口（官方统计） | core population, official statistics | 市辖区与县级市取七普城区常住人口（city_urban_pop_file）；县优先取 2020 年分乡镇街道普查中城关镇与县城街道的常住人口（township.census_township_files），缺失时取住建部《县城建设统计年鉴》mohurd_stock_year 年县城人口加暂住人口（户籍口径，不是普查常住人口）；来源见 core_pop_official_src | 人 |
+| `core_pop_official_src` | 官方中心人口的来源 | source of official core population | census_urban（七普城区人口）、census_town（乡镇街道普查）或 mohurd（住建部城区、县城人口加暂住人口） | 类别 |
+| `town_pop_chg_1020` | 县城常住人口对数变化 2010–2020（乡镇街道普查） | log change of county-town population from township census | ln(城关镇与县城街道 2020 年常住人口 / 2010 年常住人口)；两期都需在 township.census_township_files 中提供，2010 年的 county_adcode 须为 2020 年代码 | 对数差 |
 | `core_pop_ratio_official_ghs` | 官方与遥感中心人口之比 | official-to-GHS core population ratio | core_pop_official / core_pop_ghs；中心建成区识别的质控指标 | 比值 |
 | `core_pop_2010_ghs` | 中心建成区人口 2010（GHS-POP 重标定） | core population 2010, census-rescaled | c_pop_ghs_2010 × P2010 / u_pop_ghs_2010，范围固定为 2020 年中心建成区 | 人 |
 | `core_pop_chg_1020` | 中心建成区人口对数变化 2010–2020 | log change of core population | ln(core_pop_ghs / core_pop_2010_ghs)；两期各按当年普查重标定 | 对数差 |
 | `core_share_2020` | 中心建成区人口占单元比例 2020 | core share of unit population | core_pop_ghs / P2020，等于 c_pop_ghs_2020 / u_pop_ghs_2020 | 比值 |
 | `core_share_chg_1020` | 中心建成区人口占比变化 2010–2020 | change in core share of unit population | core_share_2020 − core_pop_2010_ghs / P2010 | 比值差 |
 | `quadrant_town` | 单元与中心人口变化四象限 | unit versus core population-change quadrant | 按 pop_chg_1020 与 core_pop_chg_1020 的正负分为 县域收缩-县城增长、县域收缩-县城收缩、县域增长-县城增长、县域增长-县城收缩；市辖区单元的县域指单元，县城指中心城区 | 类别 |
-| `core_pop_cf2010` | 反事实中心建成区人口 | counterfactual core population | P2010 × c_pop_ghs_2020 / u_pop_ghs_2020，即 2020 年中心占比不变、单元人口停留在 2010 年时的中心人口；低于 analysis.min_core_pop 记为缺失 | 人 |
-| `denom_effect_core` | 分母效应 | denominator effect | ln(core_pop_cf2010 / core_pop)，等于任一中心人均指标的 ln(实际值) − ln(反事实值)，树木、绿地、大型树木斑块与建成面积四项按构造相同；主口径为 ghs 时等于 −pop_chg_1020 | 对数差 |
+| `core_pop_cf2010` | 反事实中心建成区人口 | counterfactual core population | core_pop × core_pop_2010_ghs / core_pop_ghs，即固定的 2020 年中心建成区人口停留在 2010 年水平时的主口径中心人口；变化率取 GHS-POP 重标定的两期，避免混用两种来源；core_pop 缺失时为缺失 | 人 |
+| `denom_effect_core` | 分母效应 | denominator effect | ln(core_pop_cf2010 / core_pop) = −core_pop_chg_1020，即任一中心人均指标的 ln(实际值) − ln(反事实值)；树木、绿地、大型树木斑块与建成面积四项按构造相同。正值表示中心人口减少抬高了人均值 | 对数差 |
 | `tree_pc_unit` | 人均树木覆盖（单元常住口径） | core tree cover per unit resident | 中心建成区树木面积 / P2020 | m²/人 |
 | `tree_pc_hukou` | 人均树木覆盖（户籍口径） | core tree cover per registered resident | 中心建成区树木面积 / 户籍人口 | m²/人 |
 | `tree_pc_core_cf2010` | 人均树木覆盖（反事实分母） | core tree cover per counterfactual core resident | 中心建成区树木面积 / core_pop_cf2010 | m²/人 |
@@ -110,7 +113,7 @@
 | `greenpatch_pc_core` | 人均大型树木斑块 | large tree patch area per capita | 中心建成区内面积 ≥ gee.green_patch_min_m2 的连通树木斑块面积 / core_pop；地类由 gee.green_patch_class 设定（默认只用树木），连通计数前先截断于中心建成区。遥感代理不称公园，公园一词只用于矢量数据 | m²/人 |
 | `greenpatch_access_share` | 大型树木斑块 500 m 可达人口比例 | share of population within 500 m of a large tree patch | 斑块 500 m 范围内的 GHS-POP 人口 / 中心建成区 GHS-POP 人口 | 比值 |
 | `riparian_green_pc` | 人均滨水线性绿地 | riparian linear green space per capita | 近永久水体外扩 gee.riparian_buffer_m 内的绿地面积 / core_pop；水体为 JRC 出现频率 ≥ gee.riparian_water_occurrence 且连通水面 ≥ gee.riparian_min_water_m2，或 gee.river_asset；绿地地类同大型树木斑块 | m²/人 |
-| `roadside_green_pc` | 人均道路绿带（行道树代理，辅助指标） | roadside green per capita, street-tree proxy | GHSL 2018 道路面外扩 gee.road_buffer_m 内的绿地面积 / core_pop | m²/人 |
+| `roadside_green_pc` | 人均道路绿带（行道树代理，辅助指标） | roadside green per capita, street-tree proxy | GHSL 2018 道路面外扩 gee.road_buffer_m 内、属于 gee.green_patch_class 地类（默认只含树木）的面积 / core_pop | m²/人 |
 | `greenway_len_per_10k` | 每万人绿道长度 | greenway length per 10,000 core residents | c_greenway_len_m / (core_pop / 10000)；需提供 gee.greenway_asset 矢量 | m/万人 |
 | `greenway_access_share` | 绿道可达人口比例 | share of population near a greenway | 绿道 gee.greenway_access_distance_m 范围内的 GHS-POP 人口 / 中心建成区 GHS-POP 人口 | 比值 |
 | `openveg_share_2018` | 聚落内植被开放空间占比（2018） | vegetated open space share (GHS-BUILT-C) | GHSL 2018 聚落特征 1–3 类面积 / 各地类面积之和 | 比值 |
@@ -129,11 +132,12 @@
 | `imp_growth_1018_core` | 不透水面对数变化 2010–2018（中心建成区） | log change of impervious surface in core, 2010–2018 | ln(c_gaia_imp_m2_2018 / c_gaia_imp_m2_2010) | 对数差 |
 | `imp_growth_0010_unit` | 不透水面对数变化 2000–2010（单元） | log change of impervious surface in unit, 2000–2010 | ln(u_gaia_imp_m2_2010 / u_gaia_imp_m2_2000) | 对数差 |
 | `imp_growth_1018_unit` | 不透水面对数变化 2010–2018（单元） | log change of impervious surface in unit, 2010–2018 | ln(u_gaia_imp_m2_2018 / u_gaia_imp_m2_2010) | 对数差 |
+| `imp_growth_9000_core` | 不透水面对数变化 1990–2000（中心建成区） | log change of impervious surface in core, 1990–2000 | ln(c_gaia_imp_m2_2000 / c_gaia_imp_m2_1990)，范围固定为 2020 年中心建成区；需 gee.gaia_years 含 1990；前趋势检验用 | 对数差 |
+| `imp_growth_9000_unit` | 不透水面对数变化 1990–2000（单元） | log change of impervious surface in unit, 1990–2000 | ln(u_gaia_imp_m2_2000 / u_gaia_imp_m2_1990) | 对数差 |
 | `forest_share_clcd_YYYY` | CLCD 森林占比（可选） | CLCD forest share of core | c_clcdYYYY_forest_m2 / 当年各 CLCD 地类面积之和，YYYY 取 gee.clcd_years；需配置 gee.clcd_asset_template | 比值 |
-| `green_new_clcd_share` | CLCD 新增绿地占比（可选） | share of CLCD green that is new since the baseline year | c_green_new_clcd_m2_2020 / 2020 年 CLCD 森林、灌木与草地面积；新增指 gee.clcd_baseline_year 时不属这三类 | 比值 |
+| `green_new_clcd_share` | CLCD 新增绿地占比（可选） | share of CLCD green that is new since the baseline year | c_green_new_clcd_m2_2020 / 2020 年 CLCD 森林、灌木与草地面积；新增指 2020 年为这三类、而 gee.clcd_baseline_year 时为耕地、裸地或不透水面，两端都用 CLCD | 比值 |
 | `beds_per_1k_res` | 每千常住人口床位 | hospital beds per 1,000 residents | 医疗卫生机构床位（主分析期均值）/ P2020 × 1000 | 张/千人 |
 | `beds_per_1k_hukou` | 每千户籍人口床位 | hospital beds per 1,000 registered residents | 床位 / 户籍人口 × 1000 | 张/千人 |
-| `beds_res_hukou_ratio` | 床位常住与户籍口径之比 | resident-to-registered ratio of bed provision | beds_per_1k_res / beds_per_1k_hukou；代数上等于 户籍人口 / P2020，只在有床位数的单元计算，用来对照同一供给在两种口径下的差距 | 比值 |
 | `students_per_child` | 在校生与 0–14 岁人口之比 | enrolled students per child aged 0–14 | (小学 + 普通中学在校生) / (share_0_14 × P2020)；学龄与 0–14 岁并不对应，只是近似 | 比值 |
 | `welfare_beds_per_1k_65` | 每千名 65 岁以上老人养老床位 | welfare beds per 1,000 residents aged 65+ | 社会福利收养性单位床位 / (share_65plus × P2020) × 1000 | 张/千人 |
 | `teachers_per_100_students` | 每百名学生专任教师 | full-time teachers per 100 students | 专任教师 / (小学 + 普通中学在校生) × 100 | 人/百人 |

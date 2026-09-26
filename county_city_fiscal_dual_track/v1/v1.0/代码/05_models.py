@@ -53,7 +53,7 @@ LOG_VARS = ["tree_pc_core", "green_pc_core", "greenpatch_pc_core", "riparian_gre
             "housing_slack_ratio"]
 LINEAR_VARS = ["net_inflow_pc_k", "net_inflow_pc_k_rob", "gap_ratio", "pop_chg_1020", "pop_chg_0010", "green_share_core",
                "expo_tree_core", "tree_share_core", "park_access_share", "ndvi_gap", "core_growth_1020", "fss_2010",
-               "greenpatch_access_share", "transfer_pc_2000_k", "imp_growth_0010_core", "imp_growth_1018_core",
+               "greenpatch_access_share", "transfer_pc_2000_k", "imp_growth_9000_core", "pop_chg_9000", "imp_growth_0010_core", "imp_growth_1018_core",
                "dlnS_builtup_1020", "dlnP_core_1020", "share_rent_market", "housing_area_pc", "collective_share",
                "beds_per_1k_res", "students_per_child", "exp_personnel_share", "exp_genpub_share",
                "fund_fiscal_share", "fund_debt_share"]
@@ -100,6 +100,8 @@ def prepare(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
         d["gap_ratio_2010"] = 1 - d["fss_2010"]
     if {"core_growth_1020", "pop_chg_1020"} <= set(d.columns):
         d["excess_land_growth"] = d["core_growth_1020"] - d["pop_chg_1020"]
+    if {"imp_growth_9000_core", "pop_chg_9000"} <= set(d.columns):
+        d["excess_imp_9000"] = d["imp_growth_9000_core"] - d["pop_chg_9000"]
     if {"imp_growth_0010_core", "pop_chg_0010"} <= set(d.columns):
         d["excess_imp_0010"] = d["imp_growth_0010_core"] - d["pop_chg_0010"]
     if {"imp_growth_1018_core", "pop_chg_1020"} <= set(d.columns):
@@ -199,6 +201,9 @@ MODELS = [
     M("M1p 人均树木覆盖（地级市固定效应，同一城市内比较市辖区与县）",
       f"ln_tree_pc_core ~ {FISCAL} + ln_core_pop + {BASE} + C(group5) + C(pref_code)", "H2", S_MAIN),
     # 长差分：预先确定的 1999–2001 年人均转移支付为处理变量
+    M("M9p 前趋势检验 1990–2000：超额不透水面增长",
+      f"excess_imp_9000 ~ transfer_pc_2000_k + {BASE} + C(group5) + C(prov_code)", "长差分",
+      "transfer_pc_2000_k 接近 0；显著时说明 1999–2001 年的财政结构本身反映了 1990 年代的扩张趋势"),
     M("M9a 长差分 2000–2010：超额不透水面增长（前期对照）",
       f"excess_imp_0010 ~ transfer_pc_2000_k + {BASE} + C(group5) + C(prov_code)", "长差分",
       "与 M9b 同号且相近时，2010 年后的关联不能归于此后的财政变化"),

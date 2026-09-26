@@ -71,7 +71,7 @@ gee:
   road_buffer_m: 20              # 道路绿带（行道树代理）：GHSL 2018 道路面外扩距离
   baseline_tree_cover_pct: 30    # 存量/新增树木的划分：Hansen 2000 年树冠覆盖度 ≥ 30% 的 2020 年树木像元记为存量，其余记为新增
   slope_mask_deg: 15             # 敏感性检验：只统计坡度 ≤ 15° 的树木（排除山体残林）
-  gaia_years: [2000, 2010, 2018] # GAIA 年度不透水面（至 2018 年），在固定的 2020 年中心建成区内统计，用于长差分
+  gaia_years: [1990, 2000, 2010, 2018] # GAIA 年度不透水面（至 2018 年），在固定的 2020 年中心建成区内统计，用于长差分；1990 年用于前趋势检验
   use_smod: true                 # GHS-SMOD 城市中心与城镇簇面积（中心建成区识别的外部对照）
   clcd_asset_template: null      # 可选：CLCD 30 m 年度地类（Yang & Huang, 2021）的社区目录路径模板，含 {year}；路径须先在 GEE Code Editor 核验
   clcd_band: b1
@@ -133,6 +133,7 @@ fiscal_census:
   fiscal_county_file: 数据/原始/fiscal/fiscal_county.csv        # 县、县级市：《中国县域统计年鉴》
   fiscal_city_file: 数据/原始/fiscal/fiscal_city_proper.csv     # 市辖区合计：《中国城市统计年鉴》
   census_files:                                               # 分县普查表（按 数据/模板 填写）
+    1990: 数据/原始/census/census_1990_county.csv   # 可选：第四次人口普查分县常住人口，只用于长差分的前趋势检验（M9p）
     2000: 数据/原始/census/census_2000_county.csv
     2010: 数据/原始/census/census_2010_county.csv
     2020: 数据/原始/census/census_2020_county.csv

@@ -42,8 +42,8 @@ POI_KEYS = ("school", "hospital", "elderly")
 CODEBOOK = [
     # ---- 财政水平与结构 ----
     ("fss", "财政自给率（描述）", "fiscal self-sufficiency ratio",
-     "一般公共预算收入 / 一般公共预算支出，主分析期均值；只作描述，不进入回归", "比值"),
-    ("gap_ratio", "转移支付依赖度（描述）", "transfer dependence ratio", "= 1 − fss，仅作描述", "比值"),
+     "一般公共预算收入 / 一般公共预算支出，主分析期均值；只作描述，不进入主回归", "比值"),
+    ("gap_ratio", "转移支付依赖度（描述）", "transfer dependence ratio", "= 1 − fss；作描述，只在稳健性模型 R-a 中替代人均净流入", "比值"),
     ("net_inflow_pc", "人均净流入", "net fiscal inflow per capita",
      "(一般公共预算支出 − 一般公共预算收入) / P2010。分母取 2010 年人口，不受此后人口变化影响；净缺口含转移支付、债务收入、调入资金与上年结转", "元/人"),
     ("net_inflow_pc_k", "人均净流入（千元）", "net fiscal inflow per capita, thousand yuan",
@@ -109,6 +109,8 @@ CODEBOOK = [
     ("pop_chg_1020", "常住人口对数变化 2010–2020", "log change of resident population",
      "ln(P2020 / P2010)，普查常住人口；任一期人口为 0 或缺失时不计算", "对数差"),
     ("pop_chg_0010", "常住人口对数变化 2000–2010", "log change of resident population", "ln(P2010 / P2000)", "对数差"),
+    ("pop_chg_9000", "常住人口对数变化 1990–2000（可选）", "log change of resident population, 1990–2000",
+     "ln(P2000 / P1990)，P1990 取第四次人口普查分县资料（fiscal_census.census_files 的 1990 项）；只用于长差分的前趋势检验", "对数差"),
     ("res_hukou_ratio", "常住与户籍人口之比", "resident-to-registered ratio", "P2020 / 户籍人口；小于 1 表示人口净流出", "比值"),
     ("urb_rate_2020", "城镇化率 2020", "urbanization rate", "城镇人口 / 常住人口", "比值"),
     ("share_hukou_elsewhere", "人户分离人口比例 2020", "share of residents registered elsewhere",
@@ -228,7 +230,7 @@ CODEBOOK = [
     ("riparian_green_pc", "人均滨水线性绿地", "riparian linear green space per capita",
      "近永久水体外扩 gee.riparian_buffer_m 内的绿地面积 / core_pop；水体为 JRC 出现频率 ≥ gee.riparian_water_occurrence 且连通水面 ≥ gee.riparian_min_water_m2，或 gee.river_asset；绿地地类同大型树木斑块", "m²/人"),
     ("roadside_green_pc", "人均道路绿带（行道树代理，辅助指标）", "roadside green per capita, street-tree proxy",
-     "GHSL 2018 道路面外扩 gee.road_buffer_m 内的绿地面积 / core_pop", "m²/人"),
+     "GHSL 2018 道路面外扩 gee.road_buffer_m 内、属于 gee.green_patch_class 地类（默认只含树木）的面积 / core_pop", "m²/人"),
     ("greenway_len_per_10k", "每万人绿道长度", "greenway length per 10,000 core residents",
      "c_greenway_len_m / (core_pop / 10000)；需提供 gee.greenway_asset 矢量", "m/万人"),
     ("greenway_access_share", "绿道可达人口比例", "share of population near a greenway",
@@ -261,6 +263,10 @@ CODEBOOK = [
      "ln(u_gaia_imp_m2_2010 / u_gaia_imp_m2_2000)", "对数差"),
     ("imp_growth_1018_unit", "不透水面对数变化 2010–2018（单元）", "log change of impervious surface in unit, 2010–2018",
      "ln(u_gaia_imp_m2_2018 / u_gaia_imp_m2_2010)", "对数差"),
+    ("imp_growth_9000_core", "不透水面对数变化 1990–2000（中心建成区）", "log change of impervious surface in core, 1990–2000",
+     "ln(c_gaia_imp_m2_2000 / c_gaia_imp_m2_1990)，范围固定为 2020 年中心建成区；需 gee.gaia_years 含 1990；前趋势检验用", "对数差"),
+    ("imp_growth_9000_unit", "不透水面对数变化 1990–2000（单元）", "log change of impervious surface in unit, 1990–2000",
+     "ln(u_gaia_imp_m2_2000 / u_gaia_imp_m2_1990)", "对数差"),
     ("forest_share_clcd_YYYY", "CLCD 森林占比（可选）", "CLCD forest share of core",
      "c_clcdYYYY_forest_m2 / 当年各 CLCD 地类面积之和，YYYY 取 gee.clcd_years；需配置 gee.clcd_asset_template", "比值"),
     ("green_new_clcd_share", "CLCD 新增绿地占比（可选）", "share of CLCD green that is new since the baseline year",
@@ -574,6 +580,7 @@ def compute(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     pc = safe_log(safe_div(p20, p10))
     new["pop_chg_1020"] = pc
     new["pop_chg_0010"] = safe_log(safe_div(p10, p00))
+    new["pop_chg_9000"] = safe_log(safe_div(p00, col(df, "pop_resident_1990")))
     new["res_hukou_ratio"] = safe_div(p20, hukou)
     new["urb_rate_2020"] = safe_div(col(df, "pop_urban_2020"), p20)
     new["share_hukou_elsewhere"] = safe_div(col(df, "pop_hukou_elsewhere_2020"), p20)
@@ -637,8 +644,10 @@ def compute(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     # 3g 分子与分母分解（固定的 2020 年中心建成区）
     new["dlnS_builtup_1020"] = safe_log(safe_div(bs20, col(df, "c_bs_2010")))
     new["dlnS_volume_1020"] = safe_log(safe_div(col(df, "c_bv_2020"), col(df, "c_bv_2010")))
-    # GAIA 年份固定为 2000、2010、2018（指标名中的年份），与 gee.gaia_years 的默认值一致
-    y0, y1, y2 = 2000, 2010, 2018
+    # GAIA 年份固定为 1990、2000、2010、2018（指标名中的年份），与 gee.gaia_years 的默认值一致；缺某年时对应指标为缺失
+    y9, y0, y1, y2 = 1990, 2000, 2010, 2018
+    new["imp_growth_9000_core"] = safe_log(safe_div(col(df, f"c_gaia_imp_m2_{y0}"), col(df, f"c_gaia_imp_m2_{y9}")))
+    new["imp_growth_9000_unit"] = safe_log(safe_div(col(df, f"u_gaia_imp_m2_{y0}"), col(df, f"u_gaia_imp_m2_{y9}")))
     new["imp_growth_0010_core"] = safe_log(safe_div(col(df, f"c_gaia_imp_m2_{y1}"), col(df, f"c_gaia_imp_m2_{y0}")))
     new["imp_growth_1018_core"] = safe_log(safe_div(col(df, f"c_gaia_imp_m2_{y2}"), col(df, f"c_gaia_imp_m2_{y1}")))
     new["imp_growth_0010_unit"] = safe_log(safe_div(col(df, f"u_gaia_imp_m2_{y1}"), col(df, f"u_gaia_imp_m2_{y0}")))

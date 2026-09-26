@@ -99,7 +99,7 @@ def write_inputs(base: Path, gdf: gpd.GeoDataFrame):
 
     # 普查：2010、2000 年用旧代码；2020 年普查标准时点（11 月 1 日）时 130103 仍为 130127
     rows = []
-    for yr in (2000, 2010, 2020):
+    for yr in (1990, 2000, 2010, 2020):
         for c, t in zip(gdf["adcode"], gdf["t"]):
             base_pop = {"district": 6e5, "county": 3.5e5, "county_city": 6e5, "pref_city_no_district": 8e6}[t]
             growth = {"district": 0.015, "county": -0.008, "county_city": 0.002, "pref_city_no_district": 0.03}[t]
@@ -119,7 +119,7 @@ def write_inputs(base: Path, gdf: gpd.GeoDataFrame):
             rows.append(r)
     cen = pd.DataFrame(rows)
     (raw / "census").mkdir(exist_ok=True)
-    for yr in (2000, 2010, 2020):
+    for yr in (1990, 2000, 2010, 2020):
         d = cen[cen["census_year"] == yr]
         if yr == 2020:
             d = pd.concat([d, d.head(1)])  # 故意放一条重复记录
@@ -279,7 +279,7 @@ def write_mock_gee(base: Path, units: pd.DataFrame):
             r[f"c_n_poi_{k}"] = int(RNG.integers(1, 300))
             r[f"c_pop_poi_{k}{dist}_2020"] = pop * RNG.uniform(0.3, 0.99)
         imp = a20 * RNG.uniform(0.2, 0.4)
-        for y, f in ((2000, 0.5), (2010, 0.8), (2018, 1.0)):
+        for y, f in ((1990, 0.3), (2000, 0.5), (2010, 0.8), (2018, 1.0)):
             r[f"c_gaia_imp_m2_{y}"] = imp * f * RNG.uniform(0.9, 1.1)
             r[f"u_gaia_imp_m2_{y}"] = imp * 2 * f * RNG.uniform(0.9, 1.1)
         r.update({"u_smod_ucl_m2_2020": a20 * 1.2, "u_smod_uc_m2_2020": a20 * 0.6, "c_smod_ucl_m2_2020": a20 * RNG.uniform(0.5, 1.0)})
@@ -404,6 +404,7 @@ def assertions(base: Path, ud: Path, units: pd.DataFrame, cfg: dict) -> dict:
         "每个模型都已运行或写明跳过原因": len(overview) == len(m05.MODELS)
         and all(("已运行" in ln) or ("跳过" in ln) for ln in overview),
         "至少 20 个模型已运行": sum("已运行" in ln for ln in overview) >= 20,
+        "前趋势检验 M9p（1990–2000）已运行": any(ln.startswith("| M9p") and "已运行" in ln for ln in overview),
         "指标说明表中的指标都在结果表中": not [v for v in cb_vars if v not in ind.columns],
         "附录C 已导出": (base / "附录" / "附录C_指标定义与计算公式.md").exists(),
         "撤县设区：CP440100 含设区的区且人口占比 > 0": int(by.loc["CP440100", "n_converted"]) >= 1

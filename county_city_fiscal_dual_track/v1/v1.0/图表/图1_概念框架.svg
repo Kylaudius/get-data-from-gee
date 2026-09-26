@@ -102,11 +102,11 @@
   <text x="58" y="637" class="tag">预期结果（待检验）</text>
   <text x="58" y="661" class="m">人均树木、大型树木斑块与建成面积较高？（H2、H3）</text>
   <text x="58" y="683" class="m">住房余量比大于 1，扩张与人口下降并存？（H4）</text>
-  <text x="58" y="705" class="m">学位与床位按常住计高于按户籍计？绿地资本化弱？（H6、H7）</text>
+  <text x="58" y="705" class="m">每千常住人口的床位与学位较高？绿地资本化弱？（H6、H7）</text>
   <rect x="620" y="612" width="540" height="104" fill="#fffdf5" class="todo"/>
   <text x="638" y="637" class="tag">预期结果（待检验）</text>
   <text x="638" y="661" class="m">公共绿地被流入人口稀释，租赁与集体户多、住房拥挤？（H5）</text>
-  <text x="638" y="683" class="m">学位与床位按常住计低于按户籍计？（H7）</text>
+  <text x="638" y="683" class="m">每千常住人口的床位与学位偏低？（H7）</text>
   <text x="638" y="705" class="m">绿地被房价资本化，街道人口置换？（H6、H6a）</text>
 
   <!-- 测度 -->
