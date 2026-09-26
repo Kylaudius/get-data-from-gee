@@ -254,13 +254,58 @@ def classify_unit(adcode: str, name: str | None, overrides: dict | None = None) 
     return "county"
 
 
+ALLOWED_UNIT_TYPES = ("district", "county_city", "county", "pref_city_no_district")
+
+
 def load_overrides(path: Path) -> dict:
-    """读取人工覆盖表（adcode,unit_type），不存在则返回空字典。"""
+    """读取人工覆盖表（adcode,unit_type），不存在则返回空字典。
+    unit_type 只能是四种取值之一；拼写错误会生成一个新的单元类型并悄悄改变分组，所以发现即停止并列出错误行。"""
     if not Path(path).exists():
         return {}
     df = read_table(path)
+    if df.empty:
+        return {}
+    if not {"adcode", "unit_type"} <= set(df.columns):
+        raise ValueError(f"人工覆盖表 {Path(path).name} 必须包含 adcode 与 unit_type 两列，现有列为 {list(df.columns)}。")
     df["adcode"] = df["adcode"].map(norm_adcode)
+    df["unit_type"] = df["unit_type"].astype("string").str.strip()
+    bad_code = df[df["adcode"].isna()]
+    bad_type = df[df["adcode"].notna() & ~df["unit_type"].isin(ALLOWED_UNIT_TYPES)]
+    if len(bad_code) or len(bad_type):
+        lines = [f"第 {i + 2} 行：代码无法识别" for i in bad_code.index]
+        lines += [f"第 {i + 2} 行：{r.adcode} 的 unit_type 为“{r.unit_type}”" for i, r in bad_type.iterrows()]
+        raise ValueError(f"人工覆盖表 {Path(path).name} 有 {len(lines)} 行填写错误。unit_type 只能填 "
+                         f"{' / '.join(ALLOWED_UNIT_TYPES)}（分别为市辖区、县级市、县、不设区地级市），"
+                         "adcode 须为 6 位行政区划代码。请改正后重新运行：\n  " + "\n  ".join(lines[:20]))
     return dict(zip(df["adcode"], df["unit_type"]))
+
+
+def is_excluded(code, prefixes: Iterable[str]) -> bool:
+    """代码是否以 config 中任一排除前缀开头（如新疆生产建设兵团城市 6590xx）。CP 开头的市辖区单元按其地级代码判断。"""
+    if not isinstance(code, str) or not code:
+        return False
+    c = code[2:] if code.startswith("CP") else code
+    return any(c.startswith(str(p)) for p in prefixes or [])
+
+
+def code_to_unit(codes: pd.Series, c2u: pd.DataFrame) -> pd.Series:
+    """把外部表格中的代码映射到 2020 年分析单元 unit_id。
+    6 位县级代码直接查 county_to_unit；地级代码（xxxx00，直辖市 xx0000 或 xx0100）映射到该市的市辖区单元 CP+地级代码。
+    查不到时返回缺失，由调用方写入质量报告。"""
+    lookup = dict(zip(c2u["adcode"], c2u["unit_id"]))
+    unit_ids = set(c2u["unit_id"])
+
+    def one(x):
+        c = norm_adcode(x)
+        if c is None:
+            return None
+        if c in lookup:
+            return lookup[c]
+        if c[4:] == "00":
+            u = "CP" + pref_code(c)
+            return u if u in unit_ids else None
+        return None
+    return codes.map(one)
 
 
 # ---------------------------------------------------------------------------
