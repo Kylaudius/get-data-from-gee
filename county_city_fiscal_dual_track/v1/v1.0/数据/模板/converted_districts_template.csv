@@ -1,0 +1,2 @@
+﻿adcode,name,convert_year,from_type,source,note
+XXXXXX,示例：某区（原某县）,2014,县,民政部 历年县级以上行政区划变更情况,adcode 为 2020 年的区代码；convert_year 为国务院批复年份；from_type 填 县 或 县级市。提供本表后 00 不再从代码对照表推断

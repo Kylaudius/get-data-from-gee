@@ -1,0 +1,2 @@
+﻿adcode,name,census_year,pop_resident,pop_urban,households,hh_pop,collective_pop,pop_hukou,pop_hukou_elsewhere,housing_area_pc,share_rent_public,share_rent_market,share_buy_new,share_buy_second,share_self_built,share_0_14,share_65plus,source,note
+XXXXXX,示例：某县,2020,,,,,,,,,,,,,,,,2020 年人口普查分县资料 表号,人口单位为人；比例为 0 至 1 的小数。households 为家庭户户数，hh_pop 为家庭户人口，collective_pop 为集体户人口。pop_hukou 仅六普表1提供，七普用县域统计年鉴户籍人口；pop_hukou_elsewhere 为七普表3“户口登记地在外乡镇街道的人口”。住房来源比例是家庭户的比例（租赁廉租住房或公租房、租赁其他住房、购买新建商品房、购买二手房、自建住房），housing_area_pc 为家庭户人均住房建筑面积（m²），取七普长表或省级普查年鉴；share_0_14、share_65plus 取分年龄人口表

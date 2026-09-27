@@ -1,0 +1,20 @@
+# requirements.txt  本项目依赖（在已激活的 fiscal 环境中运行 pip install -r requirements.txt）
+# 版本下限为 2026-09 测试通过的组合；上限未锁定，以便 Mac 上安装最新兼容版本。
+pandas>=2.2
+numpy>=1.26
+geopandas>=1.0
+shapely>=2.0
+pyogrio>=0.9
+statsmodels>=0.14
+patsy>=0.5
+matplotlib>=3.8
+earthengine-api>=1.0
+pyyaml>=6.0
+openpyxl>=3.1
+scipy>=1.11
+# 以下供 代码/tools 中的辅助工具使用，00 至 05 主流程不需要
+requests>=2.31      # tools/build_osm_parks_greenways.py 断点续传下载 OSM 数据
+pyproj>=3.6         # tools/coord_gcj02_to_wgs84.py 检查矢量文件坐标系（安装 geopandas 时通常已一并装好）
+# 可选（不装不影响其他脚本，需要时再单独安装）：
+#   osmium>=3.7     pyosmium。提取 OSM 要素的备选工具；更快的做法是 brew install osmium-tool（命令行版，不在 pip 中）
+#   xlrd>=2.0       读取 .xls 旧格式 Excel（tools/convert_yearbook_excel.py）；也可以在 Excel 中另存为 .xlsx

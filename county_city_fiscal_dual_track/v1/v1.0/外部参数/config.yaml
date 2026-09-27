@@ -1,0 +1,193 @@
+# =====================================================================
+# config.yaml  研究参数总表（UTF-8）
+# 所有脚本都从这里读取路径、年份、阈值与数据集 ID。
+# 修改参数只改这里，不改代码；每次修改请在本迭代 readme.md 中记录“改了什么、为什么”。
+# 相对路径均以本迭代文件夹（v1/v1.0）为起点。
+# =====================================================================
+
+# ---------- 1. 分析单元（00_prepare_units.py）----------
+units:
+  # 县级行政区划边界（WGS-84/CGCS2000 经纬度；不要用高德/DataV 的 GCJ-02 边界）
+  boundary_file: 数据/原始/boundary/county_2020.shp
+  boundary_year: 2020         # 边界所代表的年份（年末行政区划）。财政、普查年份晚于它时 02 会在 qa_report 中提示口径风险
+  code_field: adcode          # 边界文件中 6 位行政区划代码的字段名
+  name_field: name            # 边界文件中名称字段名
+  unit_type_overrides: 外部参数/unit_type_overrides.csv   # 人工修正单元类型（可选）
+  seat_points_file: 数据/原始/boundary/seat_points.csv    # 县/市政府驻地点（列 adcode,lon,lat；WGS-84）
+  require_seats: true         # true = 缺少驻地点表时 00 停止并说明获取方法；false = 允许退回“最大斑块”规则（不推荐）
+  exclude_code_prefixes: ["6590"]   # 新疆生产建设兵团城市（6590xx）财政属兵团体系，保留在地图中，但不进入表格与回归
+  converted_districts_file: 数据/原始/crosswalk/converted_districts.csv   # 可选：2000 年后撤县（市）设区名单；缺失时从代码对照表 change_type 推断
+  converted_since_year: 2000  # 此年之后撤县（市）设区的区，记为新市辖区（converted district）
+  write_did_units: true       # 同时输出不合并市辖区的县级单元层 units_did（准实验用，每个 2020 年县级行政区一个单元）
+  simplify_tolerance_deg: 0.001                           # 送往 GEE 的几何简化容差，约 100 m
+  out_dir: 数据/中间/units
+  # 市辖区范围远大于实际城区的城市，可指定“中心城区”名单；名单外的市辖区成为 district_outer 单元。
+  # 重庆默认列入主城九区（渝中、大渡口、江北、沙坪坝、九龙坡、南岸、北碚、渝北、巴南），请在使用前核对代码。
+  city_proper_custom:
+    "500000": ["500103", "500104", "500105", "500106", "500107", "500108", "500109", "500112", "500113"]
+
+# ---------- 2. 遥感提取（01_gee_extract_rs.py）----------
+gee:
+  project: your-gcp-project-id   # ← 改成你自己的 Google Cloud 项目 ID
+  out_dir: 数据/中间/gee
+  units_source: local            # local = 每批从本地 GeoJSON 发送（免上传）；asset = 读取已上传的 GEE 表格资产（全国运行更稳）
+  units_asset: projects/your-gcp-project-id/assets/units_for_gee   # units_source 为 asset 时使用
+  units_did_asset: null          # 可选：准实验单元层（units_did_for_gee）上传后的 asset 路径；null = --units did 时从本地发送几何
+  years: [2010, 2020]            # 与第六、七次人口普查对齐；GHSL 为 5 年一期
+  green_year: 2020               # WorldCover v100、Sentinel-2、Dynamic World、ERA5 的年份
+  green_months: [5, 9]           # 生长季（5–9 月）合成
+  chunk_size: 10                 # 每批单元数；失败会自动拆半，频繁超时时调小到 5
+  max_retries: 2                 # 每批重试次数，仍失败则自动拆半
+  retry_base_delay_s: 20
+  request_timeout_s: 600          # 单次 GEE 请求最长等待秒数（网络/VPN 断开时不会一直卡住）
+  tile_scale: 4                  # 内存不足（User memory limit exceeded）时调大到 8 或 16
+  s2_scale: 20
+  dw_scale: 20
+  use_s2_ndvi: true
+  use_dynamic_world: true
+  ring_buffer_m: 5000            # 自然植被本底环带宽度
+  terrain_unit_scale_m: 90       # 单元平均坡度的统计尺度；坡度先在 NASADEM 原生 30 m 网格上计算（原为 500 m 尺度，山区坡度被低估）
+  mask_water_in_ndvi: true       # NDVI 均值剔除水面（JRC 出现频率 ≥ 50% 或 WorldCover 水体），避免湖泊、河流拉低城区与本底绿度
+  park_asset: null               # 可选：公园多边形 FeatureCollection asset 路径（tools/build_osm_parks_greenways.py 生成后上传；高德/百度 AOI 须先用 tools/coord_gcj02_to_wgs84.py 转换）
+  park_access_distance_m: 500    # 公园步行可达距离
+  greenway_asset: null           # 可选：绿道线要素 asset 路径（OSM 名称含“绿道/碧道”的线，或珠三角绿道网矢量）
+  greenway_access_distance_m: 500
+  poi_assets:                    # 可选：社会基础设施点位 asset（学校、医院、养老机构；坐标须为 WGS-84）
+    school: null
+    hospital: null
+    elderly: null
+  poi_access_distance_m:         # 各类设施的可达距离（参照 15 分钟社区生活圈）
+    school: 500
+    hospital: 1000
+    elderly: 500
+  use_green_proxies: true        # 大型绿斑与线性绿地的遥感代理（“公园”“绿道”两个词只用于矢量数据）
+  green_patch_class: tree        # 大型绿斑的地类：tree = 只用 WorldCover 树木（主口径）；green = 树木+灌木+草地
+  clip_patch_to_core: true       # 连通计数前先乘中心建成区掩膜，截断斑块与区外山林的连通
+  green_patch_min_m2: 10000      # 大型绿斑最小面积（1 公顷）
+  riparian_water_occurrence: 90  # 滨水线性绿地的水体：JRC 出现频率 ≥ 90%（近永久水体）
+  riparian_min_water_m2: 50000   # 且连通水面 ≥ 5 公顷，排除零散鱼塘；成片养殖塘仍可能被计入（报告已列为局限）
+  river_asset: null              # 可选：河道面要素 asset（OSM waterway/riverbank），提供后替代 JRC 水体
+  riparian_buffer_m: 50          # 滨水线性绿地：水体外扩距离
+  road_buffer_m: 20              # 道路绿带（行道树代理）：GHSL 2018 道路面外扩距离
+  baseline_tree_cover_pct: 30    # 存量/新增树木的划分：Hansen 2000 年树冠覆盖度 ≥ 30% 的 2020 年树木像元记为存量，其余记为新增
+  slope_mask_deg: 15             # 敏感性检验：只统计坡度 ≤ 15° 的树木（排除山体残林）
+  gaia_years: [1990, 2000, 2010, 2018] # GAIA 年度不透水面（至 2018 年），在固定的 2020 年中心建成区内统计，用于长差分；1990 年用于前趋势检验
+  use_smod: true                 # GHS-SMOD 城市中心与城镇簇面积（中心建成区识别的外部对照）
+  clcd_asset_template: null      # 可选：CLCD 30 m 年度地类（Yang & Huang, 2021）的社区目录路径模板，含 {year}；路径须先在 GEE Code Editor 核验
+  clcd_band: b1
+  clcd_years: [2000, 2010, 2020]
+  clcd_baseline_year: 2000
+  clcd_classes: {crop: 1, forest: 2, shrub: 3, grass: 4, water: 5, snow: 6, bare: 7, imp: 8, wetland: 9}
+  export_folder: fdt_gee_exports # --export-failed 批处理导出到 Google Drive 的文件夹名
+  isolate_large_units: true      # 面积超过 large_unit_km2 的单元单独成批，避免拖垮整批
+  large_unit_km2: 20000
+  annual:                        # --annual 模式：固定 2020 年中心建成区与单元内的年度结果变量（准实验用）
+    gaia_years: [2000, 2018]     # 起止年份（含）
+    viirs_years: [2013, 2021]
+    dw_years: [2016, 2024]
+    dw_years_per_request: 3      # Dynamic World 每次请求包含的年份数，超时就调小
+    out_subdir: annual
+  exposure_radius_m: 500         # 人口加权绿地暴露的邻域半径（Chen et al. 2022 主设定；敏感性检验改为 100/1000/1500）
+  core:
+    ghsl_threshold_m2: 2000      # 100 m 栅格内建成面积 ≥ 2000 m²（20%）判为建成
+    min_patch_km2: 0.5           # 小于此面积的斑块不作为县城/中心城区候选
+    seat_buffer_m: 1500          # 驻地点缓冲距离
+    closing_radius_m: 200        # 矢量化前对建成掩膜做形态学闭运算（先膨胀后腐蚀），半径 r 可连接宽度约 2r 以内的河流、道路、铁路间隙；0 = 不做
+    fill_holes: true             # 填补所选斑块内部孔洞（城区内公园、湖泊、广场等建成比例低于阈值的栅格）；false = 保留孔洞
+  worldcover_classes:            # ESA WorldCover v100 地类代码（附录D 已按 GEE STAC 核验）
+    tree: 10
+    shrub: 20
+    grass: 30
+    crop: 40
+    built: 50
+    bare: 60
+    snow: 70
+    water: 80
+    wetland: 90
+    mangrove: 95
+    moss: 100                    # 列全 11 类，03 中“各地类面积之和”才等于中心建成区总面积
+  datasets:                      # GEE asset ID（2026-09 按 GEE 官方 STAC 目录核验）
+    ghsl_built_s: JRC/GHSL/P2023A/GHS_BUILT_S
+    ghsl_built_v: JRC/GHSL/P2023A/GHS_BUILT_V
+    ghsl_pop: JRC/GHSL/P2023A/GHS_POP
+    worldpop: WorldPop/GP/100m/pop
+    viirs_annual_v21: NOAA/VIIRS/DNB/ANNUAL_V21   # 2013–2021
+    viirs_annual_v22: NOAA/VIIRS/DNB/ANNUAL_V22   # 2022 起
+    ccnl: BNU/FGS/CCNL/v1
+    ghsl_built_c: JRC/GHSL/P2023A/GHS_BUILT_C     # 2018，10 m 聚落内部特征
+    surface_water: JRC/GSW1_4/GlobalSurfaceWater
+    access_cities: projects/malariaatlasproject/assets/accessibility/accessibility_to_cities/2015_v1_0
+    worldcover: ESA/WorldCover/v100
+    s2_sr: COPERNICUS/S2_SR_HARMONIZED
+    dynamic_world: GOOGLE/DYNAMICWORLD/V1
+    modis_ndvi: MODIS/061/MOD13Q1
+    dem: NASA/NASADEM_HGT/001
+    era5_land_monthly: ECMWF/ERA5_LAND/MONTHLY_AGGR
+    gaia: Tsinghua/FROM-GLC/GAIA/v10               # 1985–2018 年不透水面，波段 change_year_index：值 v 对应转为不透水面的年份 2019 − v
+    hansen_gfc: UMD/hansen/global_forest_change_2025_v1_13   # 波段 treecover2000（2000 年树冠覆盖度 %）
+    ghsl_smod: JRC/GHSL/P2023A/GHS_SMOD_V2-0      # 城镇化程度 smod_code：30 城市中心，23/22 密集/半密集城镇簇
+
+# ---------- 3. 财政与普查数据整理（02_build_fiscal_census.py）----------
+fiscal_census:
+  raw_dir: 数据/原始
+  fiscal_county_file: 数据/原始/fiscal/fiscal_county.csv        # 县、县级市：《中国县域统计年鉴》
+  fiscal_city_file: 数据/原始/fiscal/fiscal_city_proper.csv     # 市辖区合计：《中国城市统计年鉴》
+  census_files:                                               # 分县普查表（按 数据/模板 填写）
+    1990: 数据/原始/census/census_1990_county.csv   # 可选：第四次人口普查分县常住人口，只用于长差分的前趋势检验（M9p）
+    2000: 数据/原始/census/census_2000_county.csv
+    2010: 数据/原始/census/census_2010_county.csv
+    2020: 数据/原始/census/census_2020_county.csv
+  crosswalk_file: 数据/原始/crosswalk/admin_crosswalk.csv       # 历年代码 → 2020 年代码
+  city_urban_pop_file: 数据/原始/city/city_urban_pop_2020.csv    # 城区人口（住建部 / 七普城区人口），用于城市规模分级
+  mohurd_file: 数据/原始/mohurd/mohurd_panel.csv                 # 住建部《城市建设统计年鉴》《县城建设统计年鉴》逐年面板（主结果变量之一）
+  mohurd_stock_year: 2020                   # 公园、道路、建成区等存量指标取这一年
+  mohurd_years_main: [2017, 2018, 2019]     # 投资与资金来源取这几年的均值，与财政主分析期一致
+  land_conveyance_file: 数据/原始/land/land_conveyance.csv   # 可选：中国土地市场网出让结果按县级代码逐年汇总
+  lgfv_debt_file: 数据/原始/land/lgfv_debt.csv               # 可选：城投平台有息债务，按平台所属行政单位归并
+  special_bond_file: 数据/原始/land/special_bonds.csv        # 可选：新增专项债项目（2019 年起），按县区与用途汇总
+  devzone_file: 数据/原始/land/devzones_2018.csv             # 可选：《中国开发区审核公告目录（2018 年版）》国家级、省级开发区核准面积
+  fiscal_years_main: [2017, 2018, 2019]     # 营改增后第一个完整年度至疫情前；2020 年有特殊转移支付，2021 年直达资金常态化
+  fiscal_years_robust: [2018, 2019, 2021]   # 稳健性检验口径
+  fiscal_years_2010: [2009, 2010, 2011]     # 与六普对齐的三年均值
+  fiscal_years_2000: [1999, 2000, 2001]     # 预先确定的财政结构（长差分的处理变量），与五普对齐
+  district_level_fiscal_prefs: []           # 已在 fiscal_county.csv 中逐区录入财政的城市（如重庆 "500000"，数据取《重庆统计年鉴》分区县表），
+                                            # 这些城市不再使用《城市统计年鉴》市辖区合计，外围区也有财政数据
+  backfilled_codes: false                   # 县域财政表若来自把历史年份改写为现行代码的数据库导出表（撤县设区前的县级记录写着现行区代码），改为 true
+  census_ref_date: "11-01"                  # 普查标准时点（月-日）。代码对照表填了 change_date 时，普查年当年标准时点之后的变更也会映射
+  money_unit_in_raw: 万元                  # 原始财政数据的计量单位
+  out_dir: 数据/中间/panel
+
+# ---------- 4. 指标、分组与模型（03–05）----------
+analysis:
+  out_dir: 数据/结果
+  fig_dir: 图表
+  storey_height_m: 3.0          # 由建筑体量折算建筑面积时的平均层高
+  self_sufficiency_cut: 0.5     # 财政自给率分组阈值（另以中位数分组做稳健性检验）
+  city_size_file: 外部参数/city_size_standard_2014.csv
+  megacity_file: 外部参数/megacities_2020.csv
+  cluster_col: pref_code        # 回归标准误聚类层级
+  min_core_pop: 5000            # 中心建成区人口低于此值的单元不计算人均指标（避免极端值）
+  core_pop_source: official     # 中心建成区人口的主口径：official = 七普城区人口（城市、县级市）与住建部县城人口+暂住人口（县）；
+                                # ghs = GHS-POP 按普查重标定（稳健性检验）。两种口径都会输出
+  admin_rank_file: 外部参数/admin_rank.csv   # 行政等级（直辖市、副省级、省会、一般地级市）
+  exclude_code_prefixes: ["6590"]           # 不进入表格与回归的单元代码前缀（兵团城市）
+  min_group_n: 10               # 分组斜率与固定效应模型中，每组至少的单元数；更少的组合并或剔除
+  min_fiscal_years: 2           # 主分析期内收入与支出同时有值的年份少于此数的单元，财政变量记为缺失
+  fig_out_dir: 数据/结果/图表     # 脚本生成的图先写到这里，研究者挑选后再复制到 图表/（避免被误判为手动修改）
+  winsor_pct: 0.01              # 连续变量双侧缩尾比例
+
+# ---------- 5. 准实验（v1.1：06_did_pmc.py）----------
+did:
+  pmc_file: 数据/原始/policy/pmc_reform_years.csv            # 省直管县财政改革年份（逐省核对）
+  conversion_events_file: 数据/原始/policy/county_district_conversion_events.csv   # 撤县（市）设区事件
+  poverty_file: 数据/原始/policy/poverty_area_counties.csv   # 连片特困地区与国家级贫困县
+  relocation_file: 数据/原始/policy/relocation_by_county.csv # 易地扶贫搬迁安置规模
+  anticipation_years: 1
+  control_group: notyettreated  # Callaway–Sant'Anna 的对照组：notyettreated 或 nevertreated
+
+# ---------- 6. 街道尺度置换检验（v1.2：07_township_gentrification.py）----------
+township:
+  census_township_files:
+    2010: 数据/原始/township/census_2010_township.csv
+    2020: 数据/原始/township/census_2020_township.csv
+  cities: ["440100", "440300", "440400", "310000"]           # 广州、深圳、珠海、上海

@@ -1,0 +1,2 @@
+﻿code,name,level,year,urban_pop_10k,urban_temp_pop_10k,source,note
+ZZZZ00,示例：某地级市,地级及以上城市,2020,,,2020 年人口普查分县资料 表1 城区人口,code 填地级代码 xxxx00（对应市辖区单元）或县级市的 6 位代码（level 填“县级市”）。人口单位为万人。七普城区人口没有暂住人口，urban_temp_pop_10k 留空；用住建部城区人口时填城区暂住人口。旧表只有 pref_code 列时仍可使用

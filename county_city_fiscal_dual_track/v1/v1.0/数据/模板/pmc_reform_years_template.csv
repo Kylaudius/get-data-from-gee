@@ -1,0 +1,2 @@
+﻿adcode,name,prov_code,reform_year,reform_type,source,note
+XXXXXX,示例：某县,ZZ0000,2009,省直管县财政,省财政厅、省政府关于省直管县财政改革的文件（文号）,每个试点县一行；reform_type 填 省直管县财政、扩权强县 或 全面直管；同一县多次改革写多行。v1.1 准实验使用

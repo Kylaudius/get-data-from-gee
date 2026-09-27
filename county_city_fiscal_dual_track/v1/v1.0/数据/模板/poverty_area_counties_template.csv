@@ -1,0 +1,2 @@
+﻿adcode,name,area_name,national_poverty_county,exit_year,source,note
+XXXXXX,示例：某县,示例：武陵山区,1,2019,国务院扶贫办 2012 年国家扶贫开发工作重点县与连片特困地区县名单；省政府脱贫摘帽公告,area_name 为所属连片特困地区（不属于填空）；national_poverty_county 为国家扶贫开发工作重点县填 1，否则 0；exit_year 为退出贫困县序列的年份。v1.1 准实验使用
