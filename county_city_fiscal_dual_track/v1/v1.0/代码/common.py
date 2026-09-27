@@ -32,7 +32,7 @@ import yaml
 # ---------------------------------------------------------------------------
 CODE_DIR = Path(__file__).resolve().parent
 # 环境变量 FDT_BASE_DIR 仅供 tests/run_smoke_test.py 使用（把全部读写重定向到临时文件夹）；正常使用无需设置。
-VERSION_DIR = Path(os.environ.get("FDT_BASE_DIR", CODE_DIR.parent)).resolve()
+VERSION_DIR = Path(os.environ.get("FDT_BASE_DIR") or CODE_DIR.parent).resolve()   # 变量为空时也按未设置处理
 CONFIG_PATH = VERSION_DIR / "外部参数" / "config.yaml"
 
 
